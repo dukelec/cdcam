@@ -35,7 +35,7 @@ static void init_info_str(void)
 {
     // M: model; S: serial string; HW: hardware version; SW: software version
     get_uid(cpu_id);
-    sprintf(info_str, "M: mdrv (bl); S: %s; SW: %s", cpu_id, SW_VER);
+    sprintf(info_str, "M: cdcam (bl); S: %s; SW: %s", cpu_id, SW_VER);
     d_info("info: %s\n", info_str);
 }
 
@@ -152,7 +152,7 @@ static void p8_service_routine(void)
         uint32_t *src_dat = (uint32_t *) *(uint32_t *)(pkt->dat + 1);
         uint8_t len = min(pkt->dat[5], CDN_MAX_DAT - 1);
         memcpy(pkt->dat + 1, src_dat, len);
-        d_debug("nvm read: %08x %d\n", src_dat, len);
+        d_verbose("nvm read: %08x %d\n", src_dat, len);
         pkt->dat[0] = 0x80;
         pkt->len = len + 1;
 
@@ -168,7 +168,7 @@ static void p8_service_routine(void)
             ret = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, (uint32_t)(dst_dat + i), *(src_dat + i));
         ret |= HAL_FLASH_Lock();
 
-        d_debug("nvm write: %08x %d(%d), ret: %d\n", dst_dat, len, cnt, ret);
+        d_verbose("nvm write: %08x %d(%d), ret: %d\n", dst_dat, len, cnt, ret);
         pkt->len = 1;
         pkt->dat[0] = ret == HAL_OK ? 0x80 : 0x81;
 #if 0

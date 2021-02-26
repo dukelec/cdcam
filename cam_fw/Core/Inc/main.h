@@ -60,10 +60,10 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define CD_CS_Pin GPIO_PIN_15
 #define CD_CS_GPIO_Port GPIOA
-#define RGB_G_Pin GPIO_PIN_1
-#define RGB_G_GPIO_Port GPIOD
-#define RGB_R_Pin GPIO_PIN_2
-#define RGB_R_GPIO_Port GPIOD
+#define LED_G_Pin GPIO_PIN_1
+#define LED_G_GPIO_Port GPIOD
+#define LED_R_Pin GPIO_PIN_2
+#define LED_R_GPIO_Port GPIOD
 #define CD_INT_Pin GPIO_PIN_3
 #define CD_INT_GPIO_Port GPIOD
 #define CD_INT_EXTI_IRQn EXTI2_3_IRQn
