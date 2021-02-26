@@ -72,11 +72,12 @@ void app_main(void)
     printf("\nstart app_main (bl)...\n");
 
     load_conf();
+    bool dbg_en_bk = csa.dbg_en;
+    csa.dbg_en = false; // silence
     debug_init(&dft_ns, &csa.dbg_dst, &csa.dbg_en);
     device_init();
     common_service_init();
     printf("bl conf: %s\n", csa.conf_from ? "load from flash" : "use default");
-    d_info("bl conf: %s\n", csa.conf_from ? "load from flash" : "use default");
     gpio_set_value(&led_g, 1);
 
     uint32_t t_last = get_systick();
@@ -97,6 +98,7 @@ void app_main(void)
                 //printf("baud rate updated, %ld %ld\n", csa.bus_cfg.baud_l, csa.bus_cfg.baud_h);
                 d_info("baud rate updated, %ld %ld\n", csa.bus_cfg.baud_l, csa.bus_cfg.baud_h);
             }
+            csa.dbg_en = dbg_en_bk;
         }
 
         if (!csa.keep_in_bl && get_systick() - boot_time > 2000000 / SYSTICK_US_DIV)
