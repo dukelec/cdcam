@@ -4,7 +4,7 @@
  * Copyright (c) 2017, DUKELEC, Inc.
  * All rights reserved.
  *
- * Author: Duke Fong <duke@dukelec.com>
+ * Author: Duke Fong <d@d-l.io>
  */
 
 #include "app_main.h"
@@ -410,3 +410,4 @@ void common_service_routine(void)
     if (!ok && t_cur > 1000000 * 60 / SYSTICK_US_DIV)
         NVIC_SystemReset();
 }
+

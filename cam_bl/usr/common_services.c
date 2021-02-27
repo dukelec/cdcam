@@ -4,7 +4,7 @@
  * Copyright (c) 2017, DUKELEC, Inc.
  * All rights reserved.
  *
- * Author: Duke Fong <duke@dukelec.com>
+ * Author: Duke Fong <d@d-l.io>
  */
 
 #include "app_main.h"
@@ -119,8 +119,8 @@ static void p5_service_routine(void)
 static void p8_service_routine(void)
 {
     // erase:   0x2f, addr_32, len_32  | return [0x80] on success
-    // read:    0x00, addr_32, len_8   | return [0x80, data]
     // write:   0x20, addr_32 + [data] | return [0x80] on success
+    // read:    0x00, addr_32, len_8   | return [0x80, data]
     // cal crc: 0x10, addr_32, len_32  | return [0x80, crc_16]
 
     cdn_pkt_t *pkt = cdn_sock_recvfrom(&sock8);
@@ -211,3 +211,4 @@ void common_service_routine(void)
     p5_service_routine();
     p8_service_routine();
 }
+

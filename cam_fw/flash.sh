@@ -1,4 +1,4 @@
 #!/bin/sh
 
-st-flash --reset write build/cam_fw.bin 0x08006800
+st-flash --reset --format ihex write build/cam_fw.hex
 
