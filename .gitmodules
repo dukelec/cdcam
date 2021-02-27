@@ -1,0 +1,8 @@
+[submodule "cdnet_bl"]
+	path = cam_bl/cdnet
+	url = ../cdnet
+
+[submodule "cdnet_fw"]
+	path = cam_fw/cdnet
+	url = ../cdnet
+
