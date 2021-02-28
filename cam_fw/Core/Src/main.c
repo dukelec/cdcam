@@ -328,7 +328,7 @@ static void MX_DMA_Init(void)
   hdma_dma_generator0.Init.MemInc = DMA_MINC_ENABLE;
   hdma_dma_generator0.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
   hdma_dma_generator0.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-  hdma_dma_generator0.Init.Mode = DMA_NORMAL;
+  hdma_dma_generator0.Init.Mode = DMA_CIRCULAR;
   hdma_dma_generator0.Init.Priority = DMA_PRIORITY_HIGH;
   if (HAL_DMA_Init(&hdma_dma_generator0) != HAL_OK)
   {
@@ -352,7 +352,7 @@ static void MX_DMA_Init(void)
   HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
   /* DMA1_Ch4_7_DMAMUX1_OVR_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Ch4_7_DMAMUX1_OVR_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA1_Ch4_7_DMAMUX1_OVR_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(DMA1_Ch4_7_DMAMUX1_OVR_IRQn);
 
 }
@@ -447,6 +447,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(CD_RST_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_1_IRQn, 1, 0);
+  //HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
+
   HAL_NVIC_SetPriority(EXTI2_3_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI2_3_IRQn);
 

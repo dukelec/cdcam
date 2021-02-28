@@ -141,7 +141,6 @@ void app_main(void)
     }
 }
 
-
 void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
 {
     if (GPIO_Pin == r_int.num) {
@@ -163,5 +162,5 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 }
 void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
 {
-    printf("spi error...\n");
+    printf("spi error... [%08lx]\n", hspi->ErrorCode);
 }
