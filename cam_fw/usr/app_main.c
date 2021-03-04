@@ -28,8 +28,8 @@ list_head_t frame_free_head = {0};
 
 static cdn_pkt_t packet_alloc[PACKET_MAX];
 
-static cdctl_dev_t r_dev = {0};    // CDBUS
-cdn_ns_t dft_ns = {0};             // CDNET
+cdctl_dev_t r_dev = {0};    // CDBUS
+cdn_ns_t dft_ns = {0};      // CDNET
 
 
 static void device_init(void)
@@ -73,7 +73,7 @@ void set_led_state(led_state_t state)
 
 extern uint32_t end; // end of bss
 #define STACK_CHECK_SKIP 0x200
-#define STACK_CHECK_SIZE (64 + STACK_CHECK_SKIP)
+#define STACK_CHECK_SIZE (16 + STACK_CHECK_SKIP)
 
 static void stack_check_init(void)
 {
@@ -124,6 +124,7 @@ void app_main(void)
     load_conf();
     debug_init(&dft_ns, &csa.dbg_dst, &csa.dbg_en);
     device_init();
+    debug_flush(true);
     common_service_init();
     d_info("conf (cam): %s\n", csa.conf_from ? "load from flash" : "use default");
     csa_list_show();

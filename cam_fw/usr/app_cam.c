@@ -12,11 +12,9 @@
 
 int ov2640_init(void);
 
-static list_head_t cam_pend = { 0 };
-static cdn_sock_t sock_cam = { .port = 0x10, .ns = &dft_ns, .tx_only = true };
-static cdn_pkt_t *pkt_cam[2] = { NULL };
-static cdn_pkt_t *pkt_prepare = NULL;
-static uint8_t pkt_cnt = 0;
+static cd_frame_t *frame_cam[2] = { NULL };
+static cd_frame_t *frame_prepare = NULL;
+static uint8_t frame_cnt = 0;
 static uint8_t status = 0; // 0: idle, 1: first, 2: more
 static bool err_flag = false;
 
@@ -26,26 +24,28 @@ static uint8_t *pp[2] = { 0 };
 static bool pp_idx = 0;
 
 
-static void init_pkt_cam(int idx)
+static inline void init_frame_cam(int idx)
 {
-    pkt_cam[idx] = pkt_prepare;
-    cdn_init_pkt(pkt_cam[idx]);
-    pkt_cam[idx]->dst = csa.cam_dst;
+    frame_cam[idx] = frame_prepare;
+    frame_cam[idx]->dat[0] = csa.bus_cfg.mac;
+    frame_cam[idx]->dat[1] = csa.cam_dst.addr[2];
+    frame_cam[idx]->dat[2] = 3;
+    frame_cam[idx]->dat[3] = 0x80;
+    frame_cam[idx]->dat[4] = csa.cam_dst.port;
     // [5:4] FRAGMENT: 00: error, 01: first, 10: more, 11: last, [3:0]: cnt
-    pkt_cam[idx]->dat[0] = 0x40;
-    pkt_cam[idx]->len = 1;
+    frame_cam[idx]->dat[5] = 0x40;
 
-    pp[idx] = pkt_cam[idx]->dat + 1;
+    pp[idx] = frame_cam[idx]->dat + 6;
     pl[idx] = 0;
-    pkt_prepare = NULL;
+    frame_prepare = NULL;
 }
 
-static void update_prepare(void)
+static inline void update_prepare(void)
 {
-    if (!pkt_prepare)
-        pkt_prepare = cdn_pkt_get(&dft_ns.free_pkts);
+    if (!frame_prepare)
+        frame_prepare = list_get_entry(&frame_free_head, cd_frame_t);
 
-    if (!pkt_prepare && status) {
+    if (!frame_prepare && status) {
         status = 0;
         err_flag = true;
     }
@@ -53,94 +53,78 @@ static void update_prepare(void)
 
 void app_cam_init(void)
 {
-    cdn_sock_bind(&sock_cam);
     ov2640_init();
 
-    pkt_prepare = cdn_pkt_get(&dft_ns.free_pkts);
-    init_pkt_cam(0);
-    pkt_prepare = cdn_pkt_get(&dft_ns.free_pkts);
-    init_pkt_cam(1);
+    frame_prepare = list_get_entry(&frame_free_head, cd_frame_t);
+    init_frame_cam(0);
+    frame_prepare = list_get_entry(&frame_free_head, cd_frame_t);
+    init_frame_cam(1);
 
     HAL_NVIC_SetPriority(EXTI0_1_IRQn, 1, 0);
-
     __HAL_GPIO_EXTI_CLEAR_RISING_IT(GPIO_PIN_0);
     HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
 }
 
 void app_cam_routine(void)
 {
-    static int eee = 0;
-    if (pl[pp_idx] >= pl_max && pl[!pp_idx] >= pl_max) {
-        eee++;
-    }
-
-    static int t_l = 0;
-    if (get_systick() - t_l > 2000000 / SYSTICK_US_DIV) {
-        t_l = get_systick();
-        //csa.capture = true;
-
-        d_warn("eee...: %d\n", eee);
-    }
-
     static int v_last = 0;
     int v_cur = GPIOB->IDR & 0x4;
     bool v_stop = v_last && !v_cur;
     v_last = v_cur;
 
+    if (status && pl[pp_idx] >= pl_max) {
+        err_flag = true;
+        status = 0;
+        d_error("cam: lost.\n");
+    }
+
     if (status == 0) {
         pl[0] = pl[1] = 0;
-        pkt_cnt = 0;
+        frame_cnt = 0;
     }
 
     update_prepare();
-    if (pkt_prepare && err_flag) {
+    if (frame_prepare && err_flag) {
         err_flag = false;
-
-        cdn_init_pkt(pkt_prepare);
-        pkt_prepare->dst = csa.cam_dst;
+        frame_prepare->dat[0] = csa.bus_cfg.mac;
+        frame_prepare->dat[1] = csa.cam_dst.addr[2];
+        frame_prepare->dat[2] = 3;
+        frame_prepare->dat[3] = 0x80;
+        frame_prepare->dat[4] = csa.cam_dst.port;
         // [5:4] FRAGMENT: 00: error, 01: first, 10: more, 11: last, [3:0]: cnt
-        pkt_prepare->dat[0] = 0x40 | (pkt_cnt & 0xf);
-        pkt_prepare->len = 1;
-        list_put(&cam_pend, &pkt_prepare->node);
-        pkt_prepare = NULL;
+        frame_prepare->dat[5] = 0x40 | (frame_cnt & 0xf);
+        r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_prepare);
+        frame_prepare = NULL;
     }
 
     update_prepare();
-    if (pkt_prepare && status && pl[!pp_idx] >= pl_max) {
+    if (frame_prepare && status && pl[!pp_idx] >= pl_max) {
         // 01: first, 10: more, 11: last
-        pkt_cam[!pp_idx]->dat[0] |= ((status == 1 ? 1 : 2) << 4) | (pkt_cnt++ & 0xf);
-        pkt_cam[!pp_idx]->len += pl[!pp_idx];
-        list_put(&cam_pend, &pkt_cam[!pp_idx]->node);
-        init_pkt_cam(!pp_idx);
+        frame_cam[!pp_idx]->dat[5] |= ((status == 1 ? 1 : 2) << 4) | (frame_cnt++ & 0xf);
+        frame_cam[!pp_idx]->dat[2] += pl[!pp_idx];
+        r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_cam[!pp_idx]);
+        init_frame_cam(!pp_idx);
         if (status == 1)
             status = 2;
     }
 
     update_prepare();
-    if (pkt_prepare && status && v_stop) {
+    if (frame_prepare && status && v_stop) {
         // 01: first, 10: more, 11: last
-        pkt_cam[pp_idx]->dat[0] |= (3 << 4) | (pkt_cnt & 0xf);
-        pkt_cam[pp_idx]->len += pl[pp_idx];
-        list_put(&cam_pend, &pkt_cam[pp_idx]->node);
-        init_pkt_cam(pp_idx);
+        frame_cam[pp_idx]->dat[5] |= (3 << 4) | (frame_cnt & 0xf);
+        frame_cam[pp_idx]->dat[2] += pl[pp_idx];
+        r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_cam[pp_idx]);
+        init_frame_cam(pp_idx);
         d_debug("cam: done.\n");
         status = 0;
         pl[0] = pl[1] = 0;
-        pkt_cnt = 0;
+        frame_cnt = 0;
     }
 
     if (status == 0 && v_stop && csa.capture) {
         status = 1;
         csa.capture = false;
         d_debug("cam: cap...\n");
-    }
-
-    if (frame_free_head.len > 1) {
-        cdn_pkt_t *pkt = cdn_pkt_get(&cam_pend);
-        if (pkt) {
-            list_put(&dft_ns.free_pkts, &pkt->node);
-            //cdn_sock_sendto(&sock_cam, pkt);
-        }
     }
 }
 

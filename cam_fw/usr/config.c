@@ -109,20 +109,21 @@ int save_conf(void)
 
 void csa_list_show(void)
 {
+    debug_flush(true);
     d_info("csa_list_show:\n\n"); debug_flush(true);
 
     CSA_SHOW(1, conf_ver, "Config version");
-    CSA_SHOW(0, conf_from, "0: default config, 1: load from flash");
+    CSA_SHOW(0, conf_from, "0: default config, 1: load from flash"); debug_flush(true);
     CSA_SHOW(0, do_reboot, "Write 1 to reboot");
     CSA_SHOW(0, save_conf, "Write 1 to save current config to flash");
     d_info("\n"); debug_flush(true);
 
     CSA_SHOW_SUB(1, bus_cfg, cdctl_cfg_t, mac, "RS-485 port id, range: 0~254");
-    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, baud_l, "RS-485 baud rate for first byte");
+    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, baud_l, "RS-485 baud rate for first byte"); debug_flush(true);
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, baud_h, "RS-485 baud rate for follow bytes");
-    CSA_SHOW_SUB(1, bus_cfg, cdctl_cfg_t, filter, "Multicast address");
+    CSA_SHOW_SUB(1, bus_cfg, cdctl_cfg_t, filter, "Multicast address"); debug_flush(true);
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, mode, "0: Arbitration, 1: Break Sync");
-    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, tx_permit_len, "Allow send wait time");
+    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, tx_permit_len, "Allow send wait time"); debug_flush(true);
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, max_idle_len, "Max idle wait time for BS mode");
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, tx_pre_len, " Active TX_EN before TX");
     d_debug("\n"); debug_flush(true);

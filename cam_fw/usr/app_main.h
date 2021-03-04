@@ -24,8 +24,8 @@
 #define APP_CONF_ADDR       0x0801f800 // page 63, the last page
 #define APP_CONF_VER        0x0101
 
-#define FRAME_MAX           10
-#define PACKET_MAX          60
+#define FRAME_MAX           110
+#define PACKET_MAX          6
 
 
 typedef enum {
@@ -100,6 +100,7 @@ void app_cam_routine(void);
 extern gpio_t led_r;
 extern gpio_t led_g;
 extern cdn_ns_t dft_ns;
+extern cdctl_dev_t r_dev;
 extern list_head_t frame_free_head;
 
 #endif

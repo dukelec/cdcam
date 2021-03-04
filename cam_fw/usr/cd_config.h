@@ -16,13 +16,14 @@
 
 #define DEBUG
 #define VERBOSE
+#define DBG_MIN_PKT         3
 #define DBG_STR_LEN         160
 #define DBG_TX_IT
 //#define LIST_DEBUG
 
-#define CDN_IRQ_SAFE
+//#define CDN_IRQ_SAFE
 
-#define CDN_SEQ
+//#define CDN_SEQ
 //#define CDN_L0_C
 //#define CDN_L2
 
