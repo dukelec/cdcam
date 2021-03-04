@@ -53,7 +53,11 @@ typedef struct {
     bool            dbg_en;
     cdn_sockaddr_t  dbg_dst;
 
+    cdn_sockaddr_t  cam_dst;
+
     uint8_t         _save_end;
+
+    bool            capture;
 
 } csa_t; // config status area
 

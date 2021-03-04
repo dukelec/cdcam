@@ -30,6 +30,7 @@ const csa_t csa_dft = {
         .bus_cfg = CDCTL_CFG_DFT(0xfe),
         .dbg_en = false,
         .dbg_dst = { .addr = {0x80, 0x00, 0x00}, .port = 9 },
+        .cam_dst = { .addr = {0x80, 0x00, 0x00}, .port = 0x10 },
 };
 
 csa_t csa;
@@ -129,5 +130,12 @@ void csa_list_show(void)
     CSA_SHOW(0, dbg_en, "1: Report debug message to host, 0: do not report");
     CSA_SHOW_SUB(2, dbg_dst, cdn_sockaddr_t, addr, "Send debug message to this address");
     CSA_SHOW_SUB(1, dbg_dst, cdn_sockaddr_t, port, "Send debug message to this port");
+    d_info("\n"); debug_flush(true);
+
+    CSA_SHOW_SUB(2, cam_dst, cdn_sockaddr_t, addr, "Send jpg to this address");
+    CSA_SHOW_SUB(1, cam_dst, cdn_sockaddr_t, port, "Send jpg to this port");
+    d_info("\n"); debug_flush(true);
+
+    CSA_SHOW(0, capture, "Capture image");
     d_info("\n"); debug_flush(true);
 }
