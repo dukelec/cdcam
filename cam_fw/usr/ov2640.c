@@ -220,7 +220,6 @@ int ov_image_size(uint16_t width, uint16_t height)
 }
 #endif
 
-
 int ov2640_init(void)
 {
     gpio_set_value(&ov_rst, 0);
@@ -240,16 +239,19 @@ int ov2640_init(void)
         return -1;
     }
 
-    for(int i = 0; i < sizeof(ov_sxga_init_tbl) / 2; i++)
-        ov_write_reg(&ov_dev, ov_sxga_init_tbl[i][0], ov_sxga_init_tbl[i][1]);
+    for(int i = 0; i < sizeof(ov_svga_init_tbl) / 2; i++)
+        ov_write_reg(&ov_dev, ov_svga_init_tbl[i][0], ov_svga_init_tbl[i][1]);
 
     ov_jpeg_mode();
-    ov_image_win(0, 0, 1600, 1200);
+    ov_image_win(0, 0, 800, 600);
     ov_out_size(csa.width, csa.height);
 
     ov_write_reg(&ov_dev, 0xff, 0x00);
     d_info("pclk: %04x\n", ov_read_reg(&ov_dev, 0xd3));
-    ov_write_reg(&ov_dev, 0xd3, 0x3f);
+    ov_write_reg(&ov_dev, 0xd3, 0x2a);
     d_info("pclk: %04x\n", ov_read_reg(&ov_dev, 0xd3));
+
+    ov_write_reg(&ov_dev, 0xff, 0x01);
+    ov_write_reg(&ov_dev, 0x11, 0x01);
     return 0;
 }

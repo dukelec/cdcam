@@ -14,7 +14,12 @@ regr_t csa_w_allow[] = {
         { .offset = offsetof(csa_t, magic_code), .size = sizeof(csa_t) },
 };
 
-csa_hook_t csa_w_hook[] = {};
+csa_hook_t csa_w_hook[] = {
+        {
+            .range = { .offset = offsetof(csa_t, width), .size = 2 * 2 },
+            .after = cam_cfg_hook
+        }
+};
 csa_hook_t csa_r_hook[] = {};
 
 int csa_w_allow_num = sizeof(csa_w_allow) / sizeof(regr_t);

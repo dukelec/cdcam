@@ -11,6 +11,7 @@
 #include "app_main.h"
 
 extern DMA_HandleTypeDef hdma_spi1_tx;
+int ov_out_size(uint16_t width,uint16_t height);
 int ov2640_init(void);
 
 static cd_frame_t *frame_cam[2] = { NULL };
@@ -51,6 +52,13 @@ static inline void update_prepare(void)
         err_flag = true;
         d_error("cam: no free.\n");
     }
+}
+
+uint8_t cam_cfg_hook(uint16_t sub_offset, uint8_t len, uint8_t *dat)
+{
+    d_info("cam_cfg: set size: %dx%d\n", csa.width, csa.height);
+    ov_out_size(csa.width, csa.height);
+    return 0;
 }
 
 void app_cam_init(void)
