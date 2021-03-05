@@ -10,6 +10,7 @@
 #include "math.h"
 #include "app_main.h"
 
+extern DMA_HandleTypeDef hdma_spi1_tx;
 int ov2640_init(void);
 
 static cd_frame_t *frame_cam[2] = { NULL };
@@ -118,10 +119,15 @@ void app_cam_routine(void)
 
             GPIOA->BRR = 0x8000; // cs = 0
             *((volatile uint8_t *)&hspi1.Instance->DR) = REG_TX | 0x80;
-            for (int i = 0; i < frame->dat[2] + 3; i++) {
-                while (!(hspi1.Instance->SR & SPI_FLAG_TXE));
-                *((volatile uint8_t *)&hspi1.Instance->DR) = frame->dat[i];
-            }
+
+            __HAL_DMA_DISABLE(&hdma_spi1_tx);
+            hdma_spi1_tx.Instance->CNDTR = frame->dat[2] + 3;
+            hdma_spi1_tx.Instance->CPAR = (uint32_t)&hspi1.Instance->DR;
+            hdma_spi1_tx.Instance->CMAR = (uint32_t)frame->dat;
+            __HAL_DMA_ENABLE(&hdma_spi1_tx);
+            SET_BIT(hspi1.Instance->CR2, SPI_CR2_TXDMAEN);
+
+            while (hdma_spi1_tx.Instance->CNDTR != 0);
             while (hspi1.Instance->SR & SPI_FLAG_BSY);
             GPIOA->BSRR = 0x8000; // cs = 1
 
