@@ -88,11 +88,17 @@ void app_cam_routine(void)
     }
 
     while (status) {
-        GPIOB->BSRR = 0x1000;
+        //GPIOB->BSRR = 0x4000;
 
         update_prepare();
         if (!status)
             break;
+
+        if (pl[0] >= pl_max && pl[1] >= pl_max) {
+            err_flag = true;
+            status = 0;
+            d_error("cam: lost.\n");
+        }
 
         if (pl[!pp_idx] >= pl_max) {
             cd_frame_t *frame = frame_cam[!pp_idx];
@@ -103,15 +109,6 @@ void app_cam_routine(void)
             list_put(&r_dev.tx_head, &frame->node);
             if (status == 1)
                 status = 2;
-        }
-
-        if (pl[pp_idx] >= pl_max) {
-            //GPIOB->BSRR = 0x4000;
-            //GPIOB->BRR = 0x4000;
-
-            err_flag = true;
-            status = 0;
-            d_error("cam: lost.\n");
         }
 
         if (!r_dev.is_pending && r_dev.tx_head.first) {
@@ -151,7 +148,7 @@ void app_cam_routine(void)
         if (v_stop)
             break;
 
-        GPIOB->BRR = 0x1000;
+        //GPIOB->BRR = 0x4000;
     }
 
     update_prepare();
@@ -191,8 +188,8 @@ void EXTI0_1_IRQHandler(void)
     if (++pl[pp_idx] >= pl_max)
         pp_idx = !pp_idx;
 
-    GPIOB->BSRR = 0x4000;
-    GPIOB->BRR = 0x4000;
+    //GPIOB->BSRR = 0x1000;
+    //GPIOB->BRR = 0x1000;
 }
 
 // vsync falling : start
