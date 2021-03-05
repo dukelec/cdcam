@@ -96,6 +96,7 @@ void app_cam_routine(void)
         }
     }
 
+    // speed up without using HAL library
     while (status) {
         //GPIOB->BSRR = 0x4000;
 
@@ -200,8 +201,3 @@ void EXTI0_1_IRQHandler(void)
     //GPIOB->BSRR = 0x1000;
     //GPIOB->BRR = 0x1000;
 }
-
-// vsync falling : start
-// vsync rising : end
-
-// or vsync rising: end / start
