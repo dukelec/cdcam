@@ -15,7 +15,7 @@
 #define CD_LIST_IT
 
 #define DEBUG
-#define VERBOSE
+//#define VERBOSE
 #define DBG_MIN_PKT         3
 #define DBG_STR_LEN         160
 #define DBG_TX_IT

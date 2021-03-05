@@ -48,12 +48,14 @@ static inline void update_prepare(void)
     if (!frame_prepare && status) {
         status = 0;
         err_flag = true;
+        d_error("cam: no free.\n");
     }
 }
 
 void app_cam_init(void)
 {
     ov2640_init();
+    cdctl_write_reg(&r_dev, REG_INT_MASK, BIT_FLAG_TX_BUF_CLEAN);
 
     frame_prepare = list_get_entry(&frame_free_head, cd_frame_t);
     init_frame_cam(0);
@@ -61,41 +63,89 @@ void app_cam_init(void)
     init_frame_cam(1);
 
     HAL_NVIC_SetPriority(EXTI0_1_IRQn, 1, 0);
+    __HAL_GPIO_EXTI_CLEAR_RISING_IT(GPIO_PIN_0);
+    __NVIC_ClearPendingIRQ(EXTI0_1_IRQn);
     HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
 }
 
 void app_cam_routine(void)
 {
-    GPIOB->BSRR = 0x1000;
-
     static int v_last = 0;
     int v_cur = GPIOB->IDR & 0x4;
     bool v_stop = v_last && !v_cur;
     v_last = v_cur;
 
-    if (status && pl[pp_idx] >= pl_max) {
-        //GPIOB->BSRR = 0x4000;
-        //GPIOB->BRR = 0x4000;
-
-        err_flag = true;
-        status = 0;
-        d_error("cam: lost.\n");
-    }
-
     if (status == 0) {
         pl[0] = pl[1] = 0;
         frame_cnt = 0;
+
+        if (v_stop && csa.capture) {
+            d_debug("cam: cap...\n");
+            status = 1;
+            csa.capture = false;
+        }
     }
 
-    update_prepare();
-    if (frame_prepare && status && pl[!pp_idx] >= pl_max) {
-        // 01: first, 10: more, 11: last
-        frame_cam[!pp_idx]->dat[5] |= ((status == 1 ? 1 : 2) << 4) | (frame_cnt++ & 0xf);
-        frame_cam[!pp_idx]->dat[2] += pl[!pp_idx];
-        r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_cam[!pp_idx]);
-        init_frame_cam(!pp_idx);
-        if (status == 1)
-            status = 2;
+    while (status) {
+        GPIOB->BSRR = 0x1000;
+
+        update_prepare();
+        if (!status)
+            break;
+
+        if (pl[!pp_idx] >= pl_max) {
+            cd_frame_t *frame = frame_cam[!pp_idx];
+            frame_cam[!pp_idx]->dat[2] += pl[!pp_idx];
+            init_frame_cam(!pp_idx);
+            // 01: first, 10: more, 11: last
+            frame->dat[5] |= ((status == 1 ? 1 : 2) << 4) | (frame_cnt++ & 0xf);
+            list_put(&r_dev.tx_head, &frame->node);
+            if (status == 1)
+                status = 2;
+        }
+
+        if (pl[pp_idx] >= pl_max) {
+            //GPIOB->BSRR = 0x4000;
+            //GPIOB->BRR = 0x4000;
+
+            err_flag = true;
+            status = 0;
+            d_error("cam: lost.\n");
+        }
+
+        if (!r_dev.is_pending && r_dev.tx_head.first) {
+            cd_frame_t *frame = list_get_entry(&r_dev.tx_head, cd_frame_t);
+
+            GPIOA->BRR = 0x8000; // cs = 0
+            *((volatile uint8_t *)&hspi1.Instance->DR) = REG_TX | 0x80;
+            for (int i = 0; i < frame->dat[2] + 3; i++) {
+                while (!(hspi1.Instance->SR & SPI_FLAG_TXE));
+                *((volatile uint8_t *)&hspi1.Instance->DR) = frame->dat[i];
+            }
+            while (hspi1.Instance->SR & SPI_FLAG_BSY);
+            GPIOA->BSRR = 0x8000; // cs = 1
+
+            r_dev.is_pending = true;
+            list_put(&frame_free_head, &frame->node);
+        }
+
+        if (r_dev.is_pending && !(GPIOD->IDR & 8)) { // pd3
+            GPIOA->BRR = 0x8000; // cs = 0
+            *((volatile uint8_t *)&hspi1.Instance->DR) = REG_TX_CTRL | 0x80;
+            while (!(hspi1.Instance->SR & SPI_FLAG_TXE));
+            *((volatile uint8_t *)&hspi1.Instance->DR) = BIT_TX_START | BIT_TX_RST_POINTER;
+            while (hspi1.Instance->SR & SPI_FLAG_BSY);
+            GPIOA->BSRR = 0x8000; // cs = 1
+            r_dev.is_pending = false;
+        }
+
+        v_cur = GPIOB->IDR & 0x4;
+        v_stop = v_last && !v_cur;
+        v_last = v_cur;
+        if (v_stop)
+            break;
+
+        GPIOB->BRR = 0x1000;
     }
 
     update_prepare();
@@ -111,12 +161,6 @@ void app_cam_routine(void)
         frame_cnt = 0;
     }
 
-    if (status == 0 && v_stop && csa.capture) {
-        status = 1;
-        csa.capture = false;
-        d_debug("cam: cap...\n");
-    }
-
     update_prepare();
     if (frame_prepare && err_flag) {
         err_flag = false;
@@ -130,8 +174,6 @@ void app_cam_routine(void)
         r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_prepare);
         frame_prepare = NULL;
     }
-
-    GPIOB->BRR = 0x1000;
 }
 
 void EXTI0_1_IRQHandler(void)

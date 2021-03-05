@@ -13,7 +13,7 @@
 #include "cdnet_dispatch.h"
 #include "cd_debug.h"
 #include "cdbus_uart.h"
-#include "cdctl_it.h"
+#include "cdctl.h"
 
 // printf float value without enable "-u _printf_float"
 // e.g.: printf("%d.%.2d\n", P_2F(2.14));
@@ -97,6 +97,9 @@ uint8_t cam_w_hook(uint16_t sub_offset, uint8_t len, uint8_t *dat);
 void app_cam_init(void);
 void app_cam_routine(void);
 
+
+extern SPI_HandleTypeDef hspi1;
+extern UART_HandleTypeDef huart1;
 extern gpio_t led_r;
 extern gpio_t led_g;
 extern cdn_ns_t dft_ns;

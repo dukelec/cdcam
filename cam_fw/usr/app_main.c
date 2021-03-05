@@ -10,16 +10,13 @@
 #include "math.h"
 #include "app_main.h"
 
-extern SPI_HandleTypeDef hspi1;
-extern UART_HandleTypeDef huart1;
-
 gpio_t led_r = { .group = LED_R_GPIO_Port, .num = LED_R_Pin };
 gpio_t led_g = { .group = LED_G_GPIO_Port, .num = LED_G_Pin };
 
 uart_t debug_uart = { .huart = &huart1 };
 
 static gpio_t r_rst = { .group = CD_RST_GPIO_Port, .num = CD_RST_Pin };
-static gpio_t r_int = { .group = CD_INT_GPIO_Port, .num = CD_INT_Pin };
+//static gpio_t r_int = { .group = CD_INT_GPIO_Port, .num = CD_INT_Pin };
 static gpio_t r_cs = { .group = CD_CS_GPIO_Port, .num = CD_CS_Pin };
 static spi_t r_spi = { .hspi = &hspi1, .ns_pin = &r_cs };
 
@@ -42,7 +39,7 @@ static void device_init(void)
     for (i = 0; i < PACKET_MAX; i++)
         list_put(&dft_ns.free_pkts, &packet_alloc[i].node);
 
-    cdctl_dev_init(&r_dev, &frame_free_head, &csa.bus_cfg, &r_spi, &r_rst, &r_int);
+    cdctl_dev_init(&r_dev, &frame_free_head, &csa.bus_cfg, &r_spi, &r_rst);
     cdn_add_intf(&dft_ns, &r_dev.cd_dev, csa.bus_net, csa.bus_cfg.mac);
 }
 
@@ -136,34 +133,10 @@ void app_main(void)
         //stack_check();
         //dump_hw_status();
         app_cam_routine();
+        cdctl_routine(&r_dev);
         cdn_routine(&dft_ns); // handle cdnet
-        app_cam_routine();
         common_service_routine();
-        app_cam_routine();
         debug_flush(false);
     }
 }
 
-void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
-{
-    if (GPIO_Pin == r_int.num) {
-        cdctl_int_isr(&r_dev);
-    }
-}
-
-void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
-{
-    cdctl_spi_isr(&r_dev);
-}
-void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
-{
-    cdctl_spi_isr(&r_dev);
-}
-void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
-{
-    cdctl_spi_isr(&r_dev);
-}
-void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
-{
-    printf("spi error... [%08lx]\n", hspi->ErrorCode);
-}
