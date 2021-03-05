@@ -64,6 +64,10 @@ void Error_Handler(void);
 #define CAM_HREF_GPIO_Port GPIOB
 #define CAM_VSYNC_Pin GPIO_PIN_2
 #define CAM_VSYNC_GPIO_Port GPIOB
+#define TEST_Pin GPIO_PIN_12
+#define TEST_GPIO_Port GPIOB
+#define TEST2_Pin GPIO_PIN_14
+#define TEST2_GPIO_Port GPIOB
 #define CAM_RST_Pin GPIO_PIN_6
 #define CAM_RST_GPIO_Port GPIOC
 #define CD_CS_Pin GPIO_PIN_15

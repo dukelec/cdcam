@@ -343,13 +343,13 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, LED_CAM_Pin|CAM_RST_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, TEST_Pin|TEST2_Pin|CD_RST_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CD_CS_GPIO_Port, CD_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, LED_G_Pin|LED_R_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CD_RST_GPIO_Port, CD_RST_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LED_CAM_Pin */
   GPIO_InitStruct.Pin = LED_CAM_Pin;
@@ -376,6 +376,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = CAM_HREF_Pin|CAM_VSYNC_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : TEST_Pin TEST2_Pin */
+  GPIO_InitStruct.Pin = TEST_Pin|TEST2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PA9 */

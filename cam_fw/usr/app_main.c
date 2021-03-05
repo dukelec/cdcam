@@ -120,7 +120,7 @@ void app_main(void)
 {
     printf("\nstart app_main (cam)...\n");
 
-    stack_check_init();
+    //stack_check_init();
     load_conf();
     debug_init(&dft_ns, &csa.dbg_dst, &csa.dbg_en);
     device_init();
@@ -133,11 +133,13 @@ void app_main(void)
     set_led_state(LED_POWERON);
 
     while (true) {
-        stack_check();
+        //stack_check();
         //dump_hw_status();
         app_cam_routine();
         cdn_routine(&dft_ns); // handle cdnet
+        app_cam_routine();
         common_service_routine();
+        app_cam_routine();
         debug_flush(false);
     }
 }
