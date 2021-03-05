@@ -82,8 +82,9 @@ void app_cam_routine(void)
 
         if (v_stop && csa.capture) {
             d_debug("cam: cap...\n");
+            if (csa.capture != 0xff)
+                csa.capture = 0;
             status = 1;
-            csa.capture = false;
         }
     }
 
@@ -184,7 +185,7 @@ void EXTI0_1_IRQHandler(void)
     __HAL_GPIO_EXTI_CLEAR_RISING_IT(GPIO_PIN_0);
     if (status == 0 || pl[pp_idx] >= pl_max || (GPIOB->IDR & 0x6) != 0x6)
         return;
-    *(pp[pp_idx] + pl[pp_idx]) = (uint8_t)GPIOA->IDR;
+    *(pp[pp_idx] + pl[pp_idx]) = GPIOA->IDR;
     if (++pl[pp_idx] >= pl_max)
         pp_idx = !pp_idx;
 

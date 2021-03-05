@@ -245,12 +245,11 @@ int ov2640_init(void)
 
     ov_jpeg_mode();
     ov_image_win(0, 0, 1600, 1200);
-    ov_out_size(1600, 1200);
+    ov_out_size(csa.width, csa.height);
 
     ov_write_reg(&ov_dev, 0xff, 0x00);
     d_info("pclk: %04x\n", ov_read_reg(&ov_dev, 0xd3));
     ov_write_reg(&ov_dev, 0xd3, 0x3f);
     d_info("pclk: %04x\n", ov_read_reg(&ov_dev, 0xd3));
-
     return 0;
 }

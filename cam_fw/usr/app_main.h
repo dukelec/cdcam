@@ -54,10 +54,12 @@ typedef struct {
     cdn_sockaddr_t  dbg_dst;
 
     cdn_sockaddr_t  cam_dst;
+    uint16_t        width;
+    uint16_t        height;
 
     uint8_t         _save_end;
 
-    bool            capture;
+    uint8_t         capture;
 
 } csa_t; // config status area
 
