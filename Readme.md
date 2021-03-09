@@ -1,7 +1,7 @@
 CDCAM Introduction
 =======================================
 
-<img src="hardware/cdcam_3d.png">
+<img src="doc/cdcam1.jpg"> <img src="doc/cdcam2.jpg">
 
 Download this project:
 ```
