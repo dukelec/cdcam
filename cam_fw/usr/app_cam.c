@@ -189,6 +189,7 @@ void app_cam_routine(void)
     }
 }
 
+__attribute__((optimize("-Ofast"))) \
 void EXTI0_1_IRQHandler(void)
 {
     __HAL_GPIO_EXTI_CLEAR_RISING_IT(GPIO_PIN_0);

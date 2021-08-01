@@ -248,7 +248,7 @@ int ov2640_init(void)
 
     ov_write_reg(&ov_dev, 0xff, 0x00);
     d_info("pclk: %04x\n", ov_read_reg(&ov_dev, 0xd3));
-    ov_write_reg(&ov_dev, 0xd3, 0x2a);
+    ov_write_reg(&ov_dev, 0xd3, 0x15);
     d_info("pclk: %04x\n", ov_read_reg(&ov_dev, 0xd3));
 
     ov_write_reg(&ov_dev, 0xff, 0x01);
