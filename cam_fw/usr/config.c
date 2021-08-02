@@ -55,6 +55,7 @@ void load_conf(void)
     } else if (magic_code == 0xcdcd && (conf_ver >> 8) == (APP_CONF_VER >> 8)) {
         memcpy(&csa, (void *)APP_CONF_ADDR, offsetof(csa_t, _end_common));
         csa.conf_from = 2;
+        csa.conf_ver = APP_CONF_VER;
     }
     if (csa.conf_from)
         memset(&csa.do_reboot, 0, 3);
@@ -146,7 +147,7 @@ void csa_list_show(void)
     d_info("csa_list_show:\n\n"); debug_flush(true);
 
     CSA_SHOW(1, conf_ver, "Config version");
-    CSA_SHOW(0, conf_from, "0: default config, 1: load from flash"); debug_flush(true);
+    CSA_SHOW(0, conf_from, "0: default config, 1: all from flash, 2: partly from flash"); debug_flush(true);
     CSA_SHOW(0, do_reboot, "Write 1 to reboot");
     CSA_SHOW(0, save_conf, "Write 1 to save current config to flash");
     d_info("\n"); debug_flush(true);
