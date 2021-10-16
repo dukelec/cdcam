@@ -25,5 +25,5 @@ If you need to restore the default configuration, change `magic_code` to another
 
 ## Hardware
 
-Schematic: <a href="hardware/cdcam_sch.pdf">cdcam_sch.pdf</a>
+Schematic: <a href="hardware/cdcam_sch.pdf">cdcam_sch_v1.2.pdf</a>
 
