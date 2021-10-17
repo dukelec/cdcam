@@ -174,5 +174,6 @@ void csa_list_show(void)
     CSA_SHOW(0, width, "Picture width");
     CSA_SHOW(0, height, "Picture height");
     CSA_SHOW(0, capture, "Write 1 capture single image, write 255 keep capture");
+    CSA_SHOW(0, read, "Write 1 read 1 pkt, write 255 read all");
     d_info("\n"); debug_flush(true);
 }

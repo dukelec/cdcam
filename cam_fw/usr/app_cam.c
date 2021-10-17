@@ -14,6 +14,7 @@ static gpio_t ram_cs = { .group = SRAM_CS_GPIO_Port, .num = SRAM_CS_Pin };
 static spi_t ram_spi = { .hspi = &hspi2, .ns_pin = &ram_cs };
 static list_head_t to_ram_head = { 0 };
 static size_t to_ram_num = 0;
+static size_t to_ram_rd = 0;
 
 extern DMA_HandleTypeDef hdma_spi1_tx;
 int ov_out_size(uint16_t width,uint16_t height);
@@ -113,12 +114,13 @@ void app_cam_routine(void)
         pl[0] = pl[1] = 0;
         frame_cnt = 0;
 
-        if (v_stop && csa.capture) {
+        if (v_stop && csa.capture && to_ram_num == 0) {
             d_debug("cam: cap...\n");
             if (csa.capture != 0xff)
                 csa.capture = 0;
             status = 1;
-            to_ram_num = 0;
+            if (csa.read != 0xff)
+                csa.read = 0; //csa.read = 1; // send 1 pkt when finish
         }
     }
 
@@ -199,14 +201,18 @@ void app_cam_routine(void)
         list_put(&frame_free_head, &frame->node);
         to_ram_num++;
     }
-    for (int i = 0; i < to_ram_num; i++) {
+
+    if (status == 0 && to_ram_num && csa.read) {
         cd_frame_t *frame = list_get_entry(&frame_free_head, cd_frame_t);
-        sram_read(&ram_spi, CD_FRAME_SIZE * i, CD_FRAME_SIZE, frame->dat);
-        r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame);
-        while (r_dev.tx_head.len > 5)
-            cdctl_routine(&r_dev);
+        if (frame) {
+            sram_read(&ram_spi, CD_FRAME_SIZE * to_ram_rd, CD_FRAME_SIZE, frame->dat);
+            r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame);
+            if (++to_ram_rd == to_ram_num)
+                to_ram_rd = to_ram_num = 0;
+            if (csa.read != 255)
+                csa.read = 0;
+        }
     }
-    to_ram_num = 0;
 }
 
 __attribute__((optimize("-Ofast"))) \
