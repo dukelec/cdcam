@@ -105,6 +105,7 @@ void app_cam_routine(void);
 
 
 extern SPI_HandleTypeDef hspi1;
+extern SPI_HandleTypeDef hspi2;
 extern UART_HandleTypeDef huart1;
 extern gpio_t led_r;
 extern gpio_t led_g;

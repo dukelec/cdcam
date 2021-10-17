@@ -10,6 +10,11 @@
 #include "math.h"
 #include "app_main.h"
 
+static gpio_t ram_cs = { .group = SRAM_CS_GPIO_Port, .num = SRAM_CS_Pin };
+static spi_t ram_spi = { .hspi = &hspi2, .ns_pin = &ram_cs };
+static list_head_t to_ram_head = { 0 };
+static size_t to_ram_num = 0;
+
 extern DMA_HandleTypeDef hdma_spi1_tx;
 int ov_out_size(uint16_t width,uint16_t height);
 int ov2640_init(void);
@@ -24,6 +29,26 @@ static uint8_t pl_max = 253 - 6;
 static uint8_t pl[2] = { 0 }; // len
 static uint8_t *pp[2] = { 0 };
 static bool pp_idx = 0;
+
+
+void sram_read(spi_t *dev, uint32_t addr, int len, uint8_t *buf)
+{
+    uint8_t hdr[4] = {0x03, (addr >> 16) & 0xff, (addr >> 8) & 0xff, addr & 0xff};
+    gpio_set_value(dev->ns_pin, 0);
+    HAL_SPI_Transmit(dev->hspi, hdr, 4, HAL_MAX_DELAY);
+    HAL_SPI_Receive(dev->hspi, buf, len, HAL_MAX_DELAY);
+    gpio_set_value(dev->ns_pin, 1);
+}
+
+// must write inside one page (256 bytes per page)
+void sram_write(spi_t *dev, uint32_t addr, int len, const uint8_t *buf)
+{
+    uint8_t hdr[4] = {0x02, (addr >> 16) & 0xff, (addr >> 8) & 0xff, addr & 0xff};
+    gpio_set_value(dev->ns_pin, 0);
+    HAL_SPI_Transmit(dev->hspi, hdr, 4, HAL_MAX_DELAY);
+    HAL_SPI_Transmit(dev->hspi, (uint8_t *)buf, len, HAL_MAX_DELAY);
+    gpio_set_value(dev->ns_pin, 1);
+}
 
 
 static inline void init_frame_cam(int idx)
@@ -93,6 +118,7 @@ void app_cam_routine(void)
             if (csa.capture != 0xff)
                 csa.capture = 0;
             status = 1;
+            to_ram_num = 0;
         }
     }
 
@@ -116,40 +142,16 @@ void app_cam_routine(void)
             init_frame_cam(!pp_idx);
             // 01: first, 10: more, 11: last
             frame->dat[5] |= ((status == 1 ? 1 : 2) << 4) | (frame_cnt++ & 0xf);
-            list_put(&r_dev.tx_head, &frame->node);
+            list_put(&to_ram_head, &frame->node);
             if (status == 1)
                 status = 2;
         }
 
-        if (!r_dev.is_pending && r_dev.tx_head.first) {
-            cd_frame_t *frame = list_get_entry(&r_dev.tx_head, cd_frame_t);
-
-            GPIOA->BRR = 0x8000; // cs = 0
-            *((volatile uint8_t *)&hspi1.Instance->DR) = REG_TX | 0x80;
-
-            __HAL_DMA_DISABLE(&hdma_spi1_tx);
-            hdma_spi1_tx.Instance->CNDTR = frame->dat[2] + 3;
-            hdma_spi1_tx.Instance->CPAR = (uint32_t)&hspi1.Instance->DR;
-            hdma_spi1_tx.Instance->CMAR = (uint32_t)frame->dat;
-            __HAL_DMA_ENABLE(&hdma_spi1_tx);
-            SET_BIT(hspi1.Instance->CR2, SPI_CR2_TXDMAEN);
-
-            while (hdma_spi1_tx.Instance->CNDTR != 0);
-            while (hspi1.Instance->SR & SPI_FLAG_BSY);
-            GPIOA->BSRR = 0x8000; // cs = 1
-
-            r_dev.is_pending = true;
+        if (to_ram_head.first) {
+            cd_frame_t *frame = list_get_entry(&to_ram_head, cd_frame_t);
+            sram_write(&ram_spi, CD_FRAME_SIZE * to_ram_num, CD_FRAME_SIZE, frame->dat);
             list_put(&frame_free_head, &frame->node);
-        }
-
-        if (r_dev.is_pending && !(GPIOD->IDR & 8)) { // pd3
-            GPIOA->BRR = 0x8000; // cs = 0
-            *((volatile uint8_t *)&hspi1.Instance->DR) = REG_TX_CTRL | 0x80;
-            while (!(hspi1.Instance->SR & SPI_FLAG_TXE));
-            *((volatile uint8_t *)&hspi1.Instance->DR) = BIT_TX_START | BIT_TX_RST_POINTER;
-            while (hspi1.Instance->SR & SPI_FLAG_BSY);
-            GPIOA->BSRR = 0x8000; // cs = 1
-            r_dev.is_pending = false;
+            to_ram_num++;
         }
 
         v_cur = GPIOB->IDR & 0x4;
@@ -166,7 +168,8 @@ void app_cam_routine(void)
         // 01: first, 10: more, 11: last
         frame_cam[pp_idx]->dat[5] |= (3 << 4) | (frame_cnt & 0xf);
         frame_cam[pp_idx]->dat[2] += pl[pp_idx];
-        r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_cam[pp_idx]);
+        //r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_cam[pp_idx]);
+        list_put(&to_ram_head, &frame_cam[pp_idx]->node);
         init_frame_cam(pp_idx);
         d_debug("cam: done.\n");
         status = 0;
@@ -184,9 +187,26 @@ void app_cam_routine(void)
         frame_prepare->dat[4] = csa.cam_dst.port;
         // [5:4] FRAGMENT: 00: error, 01: first, 10: more, 11: last, [3:0]: cnt
         frame_prepare->dat[5] = 0x40 | (frame_cnt & 0xf);
-        r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_prepare);
+        //r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_prepare);
+        list_put(&to_ram_head, &frame_prepare->node);
         frame_prepare = NULL;
     }
+
+    // send out:
+    while (to_ram_head.first) {
+        cd_frame_t *frame = list_get_entry(&to_ram_head, cd_frame_t);
+        sram_write(&ram_spi, CD_FRAME_SIZE * to_ram_num, CD_FRAME_SIZE, frame->dat);
+        list_put(&frame_free_head, &frame->node);
+        to_ram_num++;
+    }
+    for (int i = 0; i < to_ram_num; i++) {
+        cd_frame_t *frame = list_get_entry(&frame_free_head, cd_frame_t);
+        sram_read(&ram_spi, CD_FRAME_SIZE * i, CD_FRAME_SIZE, frame->dat);
+        r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame);
+        while (r_dev.tx_head.len > 5)
+            cdctl_routine(&r_dev);
+    }
+    to_ram_num = 0;
 }
 
 __attribute__((optimize("-Ofast"))) \
