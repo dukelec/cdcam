@@ -105,6 +105,7 @@ void app_cam_init(void)
 
 void app_cam_routine(void)
 {
+    static uint32_t img_size = 0;
     static int v_last = 0;
     int v_cur = GPIOB->IDR & 0x4;
     bool v_stop = v_last && !v_cur;
@@ -121,6 +122,8 @@ void app_cam_routine(void)
             status = 1;
             if (csa.read != 0xff)
                 csa.read = 0; //csa.read = 1; // send 1 pkt when finish
+            img_size = 0;
+            csa.image_size = 0;
         }
     }
 
@@ -141,6 +144,7 @@ void app_cam_routine(void)
         if (pl[!pp_idx] >= pl_max) {
             cd_frame_t *frame = frame_cam[!pp_idx];
             frame_cam[!pp_idx]->dat[2] += pl[!pp_idx];
+            img_size += pl[!pp_idx];
             init_frame_cam(!pp_idx);
             // 01: first, 10: more, 11: last
             frame->dat[5] |= ((status == 1 ? 1 : 2) << 4) | (frame_cnt++ & 0xf);
@@ -170,10 +174,12 @@ void app_cam_routine(void)
         // 01: first, 10: more, 11: last
         frame_cam[pp_idx]->dat[5] |= (3 << 4) | (frame_cnt & 0xf);
         frame_cam[pp_idx]->dat[2] += pl[pp_idx];
+        img_size += pl[pp_idx];
         //r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_cam[pp_idx]);
         list_put(&to_ram_head, &frame_cam[pp_idx]->node);
         init_frame_cam(pp_idx);
         d_debug("cam: done.\n");
+        csa.image_size = img_size;
         status = 0;
         pl[0] = pl[1] = 0;
         frame_cnt = 0;
@@ -207,8 +213,10 @@ void app_cam_routine(void)
         if (frame) {
             sram_read(&ram_spi, CD_FRAME_SIZE * to_ram_rd, CD_FRAME_SIZE, frame->dat);
             r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame);
-            if (++to_ram_rd == to_ram_num)
+            if (++to_ram_rd == to_ram_num) {
                 to_ram_rd = to_ram_num = 0;
+                csa.image_size = 0;
+            }
             if (csa.read != 255)
                 csa.read = 0;
         }

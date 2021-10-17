@@ -63,6 +63,7 @@ typedef struct {
 
     uint8_t         capture;
     uint8_t         read;
+    uint32_t        image_size;
 
 } csa_t; // config status area
 
