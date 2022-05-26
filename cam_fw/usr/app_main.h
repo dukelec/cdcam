@@ -62,6 +62,8 @@ typedef struct {
     #define         _end_save capture
 
     uint8_t         capture;
+    uint8_t         _reserved1[9];
+    bool            led_en;
 
 } csa_t; // config status area
 

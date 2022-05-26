@@ -12,6 +12,7 @@
 
 gpio_t led_r = { .group = LED_R_GPIO_Port, .num = LED_R_Pin };
 gpio_t led_g = { .group = LED_G_GPIO_Port, .num = LED_G_Pin };
+static gpio_t led_cam = { .group = LED_CAM_GPIO_Port, .num = LED_CAM_Pin };
 
 uart_t debug_uart = { .huart = &huart1 };
 
@@ -136,6 +137,7 @@ void app_main(void)
         cdctl_routine(&r_dev);
         cdn_routine(&dft_ns); // handle cdnet
         common_service_routine();
+        gpio_set_value(&led_cam, csa.led_en);
         debug_flush(false);
     }
 }
