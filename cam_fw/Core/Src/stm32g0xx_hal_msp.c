@@ -26,7 +26,11 @@
 /* USER CODE END Includes */
 extern DMA_HandleTypeDef hdma_spi1_tx;
 
+extern DMA_HandleTypeDef hdma_spi1_rx;
+
 extern DMA_HandleTypeDef hdma_spi2_tx;
+
+extern DMA_HandleTypeDef hdma_spi2_rx;
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
@@ -74,6 +78,10 @@ void HAL_MspInit(void)
   __HAL_RCC_PWR_CLK_ENABLE();
 
   /* System interrupt init*/
+  /* SVC_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(SVC_IRQn, 2, 0);
+  /* PendSV_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(PendSV_IRQn, 2, 0);
 
   /** Disable the internal Pull-Up in Dead Battery pins of UCPD peripheral
   */
@@ -199,6 +207,23 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
 
     __HAL_LINKDMA(hspi,hdmatx,hdma_spi1_tx);
 
+    /* SPI1_RX Init */
+    hdma_spi1_rx.Instance = DMA1_Channel3;
+    hdma_spi1_rx.Init.Request = DMA_REQUEST_SPI1_RX;
+    hdma_spi1_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_spi1_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_spi1_rx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_spi1_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_spi1_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_spi1_rx.Init.Mode = DMA_NORMAL;
+    hdma_spi1_rx.Init.Priority = DMA_PRIORITY_LOW;
+    if (HAL_DMA_Init(&hdma_spi1_rx) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(hspi,hdmarx,hdma_spi1_rx);
+
   /* USER CODE BEGIN SPI1_MspInit 1 */
 
   /* USER CODE END SPI1_MspInit 1 */
@@ -220,7 +245,7 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF0_SPI2;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
@@ -241,6 +266,23 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     }
 
     __HAL_LINKDMA(hspi,hdmatx,hdma_spi2_tx);
+
+    /* SPI2_RX Init */
+    hdma_spi2_rx.Instance = DMA1_Channel4;
+    hdma_spi2_rx.Init.Request = DMA_REQUEST_SPI2_RX;
+    hdma_spi2_rx.Init.Direction = DMA_PERIPH_TO_MEMORY;
+    hdma_spi2_rx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_spi2_rx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_spi2_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_spi2_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_spi2_rx.Init.Mode = DMA_NORMAL;
+    hdma_spi2_rx.Init.Priority = DMA_PRIORITY_LOW;
+    if (HAL_DMA_Init(&hdma_spi2_rx) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(hspi,hdmarx,hdma_spi2_rx);
 
   /* USER CODE BEGIN SPI2_MspInit 1 */
 
@@ -274,6 +316,7 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef* hspi)
 
     /* SPI1 DMA DeInit */
     HAL_DMA_DeInit(hspi->hdmatx);
+    HAL_DMA_DeInit(hspi->hdmarx);
   /* USER CODE BEGIN SPI1_MspDeInit 1 */
 
   /* USER CODE END SPI1_MspDeInit 1 */
@@ -295,6 +338,7 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef* hspi)
 
     /* SPI2 DMA DeInit */
     HAL_DMA_DeInit(hspi->hdmatx);
+    HAL_DMA_DeInit(hspi->hdmarx);
   /* USER CODE BEGIN SPI2_MspDeInit 1 */
 
   /* USER CODE END SPI2_MspDeInit 1 */

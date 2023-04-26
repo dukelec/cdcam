@@ -60,18 +60,15 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define LED_CAM_Pin GPIO_PIN_13
 #define LED_CAM_GPIO_Port GPIOC
-#define CAM_HREF_Pin GPIO_PIN_1
-#define CAM_HREF_GPIO_Port GPIOB
-#define CAM_VSYNC_Pin GPIO_PIN_2
-#define CAM_VSYNC_GPIO_Port GPIOB
-#define SEN_INT_Pin GPIO_PIN_12
-#define SEN_INT_GPIO_Port GPIOB
-#define SEN_CS_Pin GPIO_PIN_8
-#define SEN_CS_GPIO_Port GPIOA
-#define CAM_RST_Pin GPIO_PIN_6
-#define CAM_RST_GPIO_Port GPIOC
-#define SRAM_CS_Pin GPIO_PIN_7
-#define SRAM_CS_GPIO_Port GPIOC
+#define CAM_RST_Pin GPIO_PIN_12
+#define CAM_RST_GPIO_Port GPIOB
+#define PGA_CS_Pin GPIO_PIN_8
+#define PGA_CS_GPIO_Port GPIOA
+#define PGA_INT_Pin GPIO_PIN_11
+#define PGA_INT_GPIO_Port GPIOA
+#define PGA_INT_EXTI_IRQn EXTI4_15_IRQn
+#define PGA_RST_Pin GPIO_PIN_12
+#define PGA_RST_GPIO_Port GPIOA
 #define CD_CS_Pin GPIO_PIN_15
 #define CD_CS_GPIO_Port GPIOA
 #define LED_G_Pin GPIO_PIN_1
@@ -80,6 +77,7 @@ void Error_Handler(void);
 #define LED_R_GPIO_Port GPIOD
 #define CD_INT_Pin GPIO_PIN_3
 #define CD_INT_GPIO_Port GPIOD
+#define CD_INT_EXTI_IRQn EXTI2_3_IRQn
 #define CD_RST_Pin GPIO_PIN_9
 #define CD_RST_GPIO_Port GPIOB
 
