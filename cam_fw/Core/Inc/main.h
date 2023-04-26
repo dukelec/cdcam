@@ -82,6 +82,7 @@ void Error_Handler(void);
 #define CD_INT_GPIO_Port GPIOD
 #define CD_RST_Pin GPIO_PIN_9
 #define CD_RST_GPIO_Port GPIOB
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
@@ -91,5 +92,3 @@ void Error_Handler(void);
 #endif
 
 #endif /* __MAIN_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
