@@ -1,0 +1,5 @@
+[General]
+DeviceFamily=iCE5LP
+
+[AdditionalDelay]
+AdditionalDelayNo=true

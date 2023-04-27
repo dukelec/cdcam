@@ -17,11 +17,16 @@ static gpio_t led_cam = { .group = LED_CAM_GPIO_Port, .num = LED_CAM_Pin };
 uart_t debug_uart = { .huart = &huart1 };
 
 static gpio_t r_rst = { .group = CD_RST_GPIO_Port, .num = CD_RST_Pin };
-//static gpio_t r_int = { .group = CD_INT_GPIO_Port, .num = CD_INT_Pin };
+static gpio_t r_int = { .group = CD_INT_GPIO_Port, .num = CD_INT_Pin };
 static gpio_t r_cs = { .group = CD_CS_GPIO_Port, .num = CD_CS_Pin };
 static spi_t r_spi = { .hspi = &hspi1, .ns_pin = &r_cs };
 
-static cd_frame_t frame_alloc[FRAME_MAX];
+gpio_t pga_rst = { .group = PGA_RST_GPIO_Port, .num = PGA_RST_Pin };
+static gpio_t pga_int = { .group = PGA_INT_GPIO_Port, .num = PGA_INT_Pin };
+gpio_t pga_cs = { .group = PGA_CS_GPIO_Port, .num = PGA_CS_Pin };
+static spi_t pga_spi = { .hspi = &hspi2, .ns_pin = &pga_cs };
+
+cd_frame_t frame_alloc[FRAME_MAX];
 list_head_t frame_free_head = {0};
 
 static cdn_pkt_t packet_alloc[PACKET_MAX];
@@ -29,6 +34,8 @@ list_head_t packet_free_head = {0};
 
 cdctl_dev_t r_dev = {0};    // CDBUS
 cdn_ns_t dft_ns = {0};      // CDNET
+
+camctl_dev_t cam_dev = {0}; // Camera Controller
 
 
 static void device_init(void)
@@ -41,8 +48,10 @@ static void device_init(void)
     for (i = 0; i < PACKET_MAX; i++)
         list_put(&packet_free_head, &packet_alloc[i].node);
 
-    cdctl_dev_init(&r_dev, &frame_free_head, &csa.bus_cfg, &r_spi, &r_rst);
+    cdctl_dev_init(&r_dev, &frame_free_head, &csa.bus_cfg, &r_spi, &r_rst, &r_int);
     cdn_add_intf(&dft_ns, &r_dev.cd_dev, csa.bus_net, csa.bus_cfg.mac);
+
+    camctl_dev_init(&cam_dev, &frame_free_head, &pga_spi, &pga_int);
 }
 
 void set_led_state(led_state_t state)
@@ -97,7 +106,7 @@ static void stack_check(void)
     }
 }
 
-#if 0
+#if 1
 static void dump_hw_status(void)
 {
     static int t_l = 0;
@@ -111,6 +120,9 @@ static void dump_hw_status(void)
                 r_dev.rx_cnt, r_dev.rx_lost_cnt, r_dev.rx_error_cnt,
                 r_dev.rx_no_free_node_cnt,
                 r_dev.tx_cnt, r_dev.tx_cd_cnt, r_dev.tx_error_cnt);
+        d_debug("cam: state %d, r_len %d, irq %d | r_cnt %d (lost %d, no-free %d)\n",
+                cam_dev.state, cam_dev.rx_head.len, !gpio_get_value(cam_dev.int_n),
+                cam_dev.rx_cnt, cam_dev.rx_lost_cnt, cam_dev.rx_no_free_node_cnt);
     }
 }
 #endif
@@ -121,6 +133,7 @@ void app_main(void)
 
     stack_check_init();
     load_conf();
+    pga_config();
     debug_init(&dft_ns, &csa.dbg_dst, &csa.dbg_en);
     device_init();
     debug_flush(true);
@@ -133,9 +146,8 @@ void app_main(void)
 
     while (true) {
         stack_check();
-        //dump_hw_status();
+        dump_hw_status();
         app_cam_routine();
-        cdctl_routine(&r_dev);
         cdn_routine(&dft_ns); // handle cdnet
         common_service_routine();
         gpio_set_value(&led_cam, csa.led_en);
@@ -143,3 +155,38 @@ void app_main(void)
     }
 }
 
+
+void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == r_int.num) {
+        cdctl_int_isr(&r_dev);
+    } else if (GPIO_Pin == pga_int.num) {
+        camctl_int_isr(&cam_dev);
+    }
+}
+
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+    if (hspi == &hspi1)
+        cdctl_spi_isr(&r_dev);
+    else
+        camctl_spi_isr(&cam_dev);
+}
+void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+    if (hspi == &hspi1)
+        cdctl_spi_isr(&r_dev);
+    else
+        camctl_spi_isr(&cam_dev);
+}
+void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+    if (hspi == &hspi1)
+        cdctl_spi_isr(&r_dev);
+    else
+        camctl_spi_isr(&cam_dev);
+}
+void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
+{
+    printf("spi error... [%08lx]\n", hspi->ErrorCode);
+}

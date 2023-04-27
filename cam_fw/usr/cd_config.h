@@ -21,7 +21,7 @@
 #define DBG_TX_IT
 //#define LIST_DEBUG
 
-//#define CDN_IRQ_SAFE
+#define CDN_IRQ_SAFE
 
 //#define CDN_SEQ
 //#define CDN_RB_TREE

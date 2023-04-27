@@ -13,7 +13,8 @@
 #include "cdnet_dispatch.h"
 #include "cd_debug.h"
 #include "cdbus_uart.h"
-#include "cdctl.h"
+#include "cdctl_it.h"
+#include "camctl_it.h"
 
 // printf float value without enable "-u _printf_float"
 // e.g.: printf("%d.%.2d\n", P_2F(2.14));
@@ -104,14 +105,20 @@ void set_led_state(led_state_t state);
 uint8_t cam_cfg_hook(uint16_t sub_offset, uint8_t len, uint8_t *dat);
 void app_cam_init(void);
 void app_cam_routine(void);
+void pga_config(void);
 
 
 extern SPI_HandleTypeDef hspi1;
+extern SPI_HandleTypeDef hspi2;
 extern UART_HandleTypeDef huart1;
 extern gpio_t led_r;
 extern gpio_t led_g;
+extern gpio_t pga_rst;
+extern gpio_t pga_cs;
 extern cdn_ns_t dft_ns;
 extern cdctl_dev_t r_dev;
+extern camctl_dev_t cam_dev;
 extern list_head_t frame_free_head;
+extern cd_frame_t frame_alloc[];
 
 #endif

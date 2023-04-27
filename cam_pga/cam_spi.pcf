@@ -1,0 +1,25 @@
+# Family & Device:    iCE5LP1K
+# Package:            SG48
+
+set_io clk_i        20
+set_io cam_mclk     35
+
+set_io int_n        13
+set_io nss          16
+set_io sck          15
+set_io sdi          17
+set_io sdo          14
+
+set_io cam_vsync    38
+set_io cam_href     37
+set_io cam_pclk     31
+
+set_io cam_data[0]  27
+set_io cam_data[1]  25
+set_io cam_data[2]  23
+set_io cam_data[3]  26
+set_io cam_data[4]  28
+set_io cam_data[5]  32
+set_io cam_data[6]  34
+set_io cam_data[7]  36
+
