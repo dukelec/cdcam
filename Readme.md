@@ -1,7 +1,7 @@
 CDCAM Introduction
 =======================================
 
-<img src="doc/cdcam3.jpg">
+<img src="doc/cdcam4.jpg">
 
 RS-485 wire housing: Molex 5264 (4 pin)
 
@@ -14,11 +14,10 @@ git clone --recurse-submodules https://github.com/dukelec/cdcam.git
 
 CDBUS GUI Tool: https://github.com/dukelec/cdbus_gui
 
-In the current configuration, the frame rate of 800x600 pictures is tested at 2.5 fps.  
-In previous tests, it was possible to reach 10 fps,
-but when shooting targets with a lot of detail (when the jpg file is relatively large), the picture tends to tear.  
+In the current configuration, the frame rate of 800x600 pictures is tested at 5 fps.  
 
-The fps is limited by the performance of the STM32G0.
+The frame rate can be higher, ultimately limited by the richness of the captured image (which affects the JPG image size),
+the bandwidth of the bus, and the performance of the HTML5 GUI tool (HTML5 will get stuck with too much data).
 
 Default sensor: OV2640.
 
@@ -31,5 +30,5 @@ If you need to restore the default configuration, change `magic_code` to another
 
 ## Hardware
 
-Schematic: <a href="hardware/cdcam_sch_v1.3.pdf">cdcam_sch_v1.3.pdf</a>
+Schematic: <a href="hardware/cdcam_sch_v2.0.pdf">cdcam_sch_v2.0.pdf</a>
 
