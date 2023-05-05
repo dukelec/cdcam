@@ -32,3 +32,5 @@ If you need to restore the default configuration, change `magic_code` to another
 
 Schematic: <a href="hardware/cdcam_sch_v2.0.pdf">cdcam_sch_v2.0.pdf</a>
 
+Hardware without FPGA please switch to branch: `hw_v1`
+
