@@ -16,7 +16,7 @@ regr_t csa_w_allow[] = {
 
 csa_hook_t csa_w_hook[] = {
         {
-            .range = { .offset = offsetof(csa_t, width), .size = 2 * 2 },
+            .range = { .offset = offsetof(csa_t, width), .size = offsetof(csa_t, _reserved1) - offsetof(csa_t, width) },
             .after = cam_cfg_hook
         }
 };
@@ -37,7 +37,10 @@ const csa_t csa_dft = {
         .dbg_dst = { .addr = {0x80, 0x00, 0x00}, .port = 9 },
         .cam_dst = { .addr = {0x80, 0x00, 0x00}, .port = 0x10 },
         .width = 640,
-        .height = 480
+        .height = 480,
+        .manual = false,
+        .exposure = 50,
+        .agc = 0
 };
 
 csa_t csa;
@@ -173,6 +176,13 @@ void csa_list_show(void)
 
     CSA_SHOW(0, width, "Picture width");
     CSA_SHOW(0, height, "Picture height");
+    d_info("\n"); debug_flush(true);
+    
+    CSA_SHOW(0, manual, "0: Auto mode; 1: Manual mode");
+    CSA_SHOW(0, exposure, "Exposure (AEC)");
+    CSA_SHOW(0, agc, "AGC");
+    d_info("\n"); debug_flush(true);
+
     CSA_SHOW(0, capture, "Write 1 capture single image, write 255 keep capture");
     CSA_SHOW(0, led_en, "LED enable / disable");
     d_info("\n"); debug_flush(true);

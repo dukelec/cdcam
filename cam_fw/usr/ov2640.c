@@ -28,14 +28,31 @@ void ov_jpeg_mode(void)
         ov_write_reg(&ov_dev, ov_jpeg_tbl[i][0], ov_jpeg_tbl[i][1]);
 }
 
-#if 0
 // level: 0~4
 void ov_auto_exposure(uint8_t level)
 {  
     const uint8_t *p = ov_auto_exposure_tbl[level];
     for (int i = 0; i < 4; i++)
         ov_write_reg(&ov_dev, p[i*2], p[i*2+1]);
-}  
+}
+
+void ov_manual_exposure(uint16_t exposure)
+{
+    ov_write_reg(&ov_dev, 0xff, 0x01);
+    ov_write_reg(&ov_dev, 0x13, ov_read_reg(&ov_dev, 0x13) & 0xfe); // clear bit0
+    ov_write_reg(&ov_dev, 0x45, (ov_read_reg(&ov_dev, 0x45) & 0xc0) | (exposure >> 10));
+    ov_write_reg(&ov_dev, 0x10, (exposure >> 2) & 0xff);
+    ov_write_reg(&ov_dev, 0x04, (ov_read_reg(&ov_dev, 0x04) & 0xfc) | (exposure & 0x3));
+}
+
+void ov_manual_agc(uint8_t agc)
+{
+    ov_write_reg(&ov_dev, 0xff, 0x01);
+    ov_write_reg(&ov_dev, 0x13, ov_read_reg(&ov_dev, 0x13) & 0xfb); // clear bit2
+    ov_write_reg(&ov_dev, 0x14, ov_read_reg(&ov_dev, 0x14) & 0x1f); // clear bit[7:5]: agc gain ceiling, GH[2:0]
+    ov_write_reg(&ov_dev, 0x00, agc);
+    ov_write_reg(&ov_dev, 0x45, ov_read_reg(&ov_dev, 0x45) & 0x3f); // clear bit[7:6]: agc[9:8]
+}
 
 void ov_light_mode(uint8_t mode)
 {
@@ -156,7 +173,6 @@ void ov_out_win(uint16_t sx, uint16_t sy, uint16_t width, uint16_t height)
     ov_write_reg(&ov_dev, 0x17, sx >> 3);
     ov_write_reg(&ov_dev, 0x18, endx >> 3);
 }
-#endif
 
 int ov_out_size(uint16_t width,uint16_t height)
 {
@@ -253,5 +269,14 @@ int ov2640_init(void)
 
     ov_write_reg(&ov_dev, 0xff, 0x01);
     ov_write_reg(&ov_dev, 0x11, 0x01);
+
+    ov_light_mode(3);
+    ov_color_saturation(0);
+    ov_brightness(0);
+    ov_contrast(0);
+    if (csa.manual) {
+        ov_manual_exposure(csa.exposure);
+        ov_manual_agc(csa.agc);
+    }
     return 0;
 }
