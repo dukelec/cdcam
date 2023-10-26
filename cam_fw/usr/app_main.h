@@ -23,7 +23,7 @@
 
 
 #define APP_CONF_ADDR       0x0801f800 // page 63, the last page
-#define APP_CONF_VER        0x0102
+#define APP_CONF_VER        0x0103
 
 #define FRAME_MAX           110
 #define PACKET_MAX          6
@@ -59,11 +59,17 @@ typedef struct {
     uint16_t        width;
     uint16_t        height;
 
+    uint8_t         _reserved0[12];
+    bool            manual;
+    uint16_t        exposure;
+    uint8_t         agc;
+    uint8_t         _reserved1[24];
+
     // end of flash
     #define         _end_save capture
 
     uint8_t         capture;
-    uint8_t         _reserved1[9];
+    uint8_t         _reserved2[9];
     bool            led_en;
 
 } csa_t; // config status area

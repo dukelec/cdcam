@@ -15,6 +15,8 @@
 #include "pga_fw/pga_fw_02.h"
 
 int ov_out_size(uint16_t width,uint16_t height);
+void ov_manual_exposure(uint16_t exposure);
+void ov_manual_agc(uint8_t agc);
 int ov2640_init(void);
 
 static uint8_t frame_cnt = 0;
@@ -75,6 +77,11 @@ uint8_t cam_cfg_hook(uint16_t sub_offset, uint8_t len, uint8_t *dat)
 {
     d_info("cam_cfg: set size: %dx%d\n", csa.width, csa.height);
     ov_out_size(csa.width, csa.height);
+    if (csa.manual) {
+        d_info("cam_cfg: set exposure: %d, agc: 0x%02x\n", csa.exposure, csa.agc);
+        ov_manual_exposure(csa.exposure);
+        ov_manual_agc(csa.agc);
+    }
     return 0;
 }
 
