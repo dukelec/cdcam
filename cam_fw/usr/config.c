@@ -16,7 +16,7 @@ regr_t csa_w_allow[] = {
 
 csa_hook_t csa_w_hook[] = {
         {
-            .range = { .offset = offsetof(csa_t, width), .size = offsetof(csa_t, _reserved1) - offsetof(csa_t, width) },
+            .range = { .offset = offsetof(csa_t, exposure), .size = offsetof(csa_t, _reserved1) - offsetof(csa_t, exposure) },
             .after = cam_cfg_hook
         }
 };
