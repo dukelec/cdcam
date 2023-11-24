@@ -58,8 +58,6 @@ static inline void update_prepare(void)
 
 uint8_t cam_cfg_hook(uint16_t sub_offset, uint8_t len, uint8_t *dat)
 {
-    d_info("cam_cfg: set size: %dx%d\n", csa.width, csa.height);
-    ov_out_size(csa.width, csa.height);
     if (csa.manual) {
         d_info("cam_cfg: set exposure: %d, agc: 0x%02x\n", csa.exposure, csa.agc);
         ov_manual_exposure(csa.exposure);
