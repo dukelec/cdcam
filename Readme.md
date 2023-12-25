@@ -1,7 +1,7 @@
 CDCAM Introduction
 =======================================
 
-<img src="doc/cdcam4.jpg">
+<img src="doc/cdcam_v3.jpg">
 
 RS-485 wire housing: Molex 5264 (4 pin)
 
