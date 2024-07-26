@@ -11,7 +11,7 @@
 
 module cam_csr
     #(
-        parameter VERSION = 8'h11
+        parameter VERSION = 8'h12
     )(
         input               clk,
         input               reset_n,
@@ -47,21 +47,24 @@ localparam
     REG_RX_PAGE_FLAG    = 'h19;
 
 reg chip_select_delayed;
-reg [1:0] cmd_addr;
 reg rx_lost_flag;
 
 reg [7:0] int_mask;
 wire [7:0] int_flag = {4'd0, rx_lost_flag, 1'b0, rx_pending, 1'b0};
 reg [7:0] int_flag_snapshot;
+reg [15:0] rx_ram_rd_flags_shift;
 
 assign irq = (int_flag & int_mask) != 0;
 
-always @(posedge clk) begin
-    if (!chip_select)
-        cmd_addr <= 0;
-    else if (csr_write || csr_read)
-        cmd_addr <= cmd_addr + 1'd1;
-end
+
+always @(posedge clk)
+    if (!chip_select) begin
+            rx_ram_rd_flags_shift <= rx_ram_rd_flags;
+            int_flag_snapshot <= int_flag;
+    end
+    else if (csr_read) begin
+        rx_ram_rd_flags_shift <= {8'd0, rx_ram_rd_flags_shift[15:8]};
+    end
 
 
 always @(*)
@@ -78,13 +81,8 @@ always @(*)
             csr_readdata = rx_ram_rd_byte;
         REG_RX_ADDR:
             csr_readdata = rx_ram_rd_addr;
-        REG_RX_PAGE_FLAG: begin
-            csr_readdata = rx_ram_rd_flags;
-            if (cmd_addr[1:0] == 0)
-                csr_readdata = rx_ram_rd_flags[7:0];
-            else
-                csr_readdata = rx_ram_rd_flags[15:8];
-        end
+        REG_RX_PAGE_FLAG:
+            csr_readdata = rx_ram_rd_flags_shift[7:0];
         default:
             csr_readdata = 0;
     endcase
@@ -95,7 +93,6 @@ always @(posedge clk or negedge reset_n)
         pkt_size <= 249; // real size = pkt_size + 1
         rx_lost_flag <= 0;
         int_mask <= 0;
-        int_flag_snapshot <= 0;
         rx_ram_rd_addr <= 0;
         rx_ram_rd_done <= 0;
         rx_clean_all <= 0;
@@ -106,8 +103,6 @@ always @(posedge clk or negedge reset_n)
         chip_select_delayed <= chip_select;
 
         if (!chip_select) begin
-            int_flag_snapshot <= int_flag;
-            
             if (chip_select_delayed && rx_ram_rd_addr != 0) begin
                 rx_ram_rd_done <= 1;
                 rx_ram_rd_addr <= 0;

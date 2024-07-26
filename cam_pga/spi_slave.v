@@ -39,7 +39,8 @@ always @(posedge clk)
     nss_d <= {nss_d[0], nss};
 assign chip_select = !nss_d[1];
 
-wire spi_reset_n = reset_n && !nss;
+//wire spi_reset_n = reset_n && !nss;
+wire spi_reset_n = !nss;
 reg  [2:0] bit_cnt;
 reg  [7:0] rreg;
 reg  [7:0] treg;
@@ -47,13 +48,12 @@ reg  is_first_byte;
 reg  is_write;
 reg  write_event;
 reg  read_event;
-reg  sdo_dat_en;
 
 `ifndef SHARING_IO_PIN
-    assign sdo = (spi_reset_n && sdo_dat_en) ? treg[7] : 1'bz;
+    assign sdo = spi_reset_n ? treg[7] : 1'bz;
 `else
     assign sdo = treg[7];
-    assign sdo_en = spi_reset_n && sdo_dat_en;
+    assign sdo_en = spi_reset_n;
 `endif
 
 // read from sdi
@@ -92,14 +92,11 @@ always @(posedge sck or negedge spi_reset_n)
     end
 
 // write to sdo
-always @(negedge sck or negedge spi_reset_n)
-    if (!spi_reset_n) begin
-        treg <= 0;
-        sdo_dat_en <= 0;
-    end
-    else begin
-        if (!is_write && !is_first_byte)
-            sdo_dat_en <= 1;
+always @(negedge sck) // or negedge spi_reset_n)
+    //if (!spi_reset_n)
+    //    treg <= 0;
+    //else
+    begin
         if (bit_cnt == 0)
             treg <= csr_readdata; // first time at last bit negedge of first byte
         else
