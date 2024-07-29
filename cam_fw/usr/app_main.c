@@ -67,30 +67,6 @@ static void device_init(void)
     cdn_add_intf(&dft_ns, &r_dev.cd_dev, csa.bus_net, csa.bus_cfg.mac);
 }
 
-void set_led_state(led_state_t state)
-{
-    static bool is_err = false;
-    if (is_err)
-        return;
-
-    switch (state) {
-    case LED_POWERON:
-        gpio_set_value(&led_r, 0);
-        gpio_set_value(&led_g, 1);
-        break;
-    case LED_WARN:
-        gpio_set_value(&led_r, 1);
-        gpio_set_value(&led_g, 0);
-        break;
-    default:
-    case LED_ERROR:
-        is_err = true;
-        gpio_set_value(&led_r, 1);
-        gpio_set_value(&led_g, 1);
-        break;
-    }
-}
-
 
 extern uint32_t end; // end of bss
 #define STACK_CHECK_SKIP 0x200
@@ -139,6 +115,8 @@ static void dump_hw_status(void)
 
 void app_main(void)
 {
+    gpio_set_value(&led_r, 1);
+    gpio_set_value(&led_g, 1);
     printf("\nstart app_main (cam)...\n");
 
     stack_check_init();
@@ -151,7 +129,7 @@ void app_main(void)
     csa_list_show();
 
     app_cam_init();
-    set_led_state(LED_POWERON);
+    gpio_set_value(&led_r, 0);
 
     while (true) {
         stack_check();
