@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2023 STMicroelectronics.
+  * Copyright (c) 2024 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -78,6 +78,7 @@ static void MX_SPI2_Init(void);
   */
 int main(void)
 {
+
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -166,7 +167,8 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_PLLCLK, RCC_MCODIV_4);
+  __HAL_RCC_PLLCLKOUT_ENABLE(RCC_PLLRCLK);
+  HAL_RCC_MCOConfig(RCC_MCO_PA9, RCC_MCO1SOURCE_PLLCLK, RCC_MCODIV_4);
 }
 
 /**
