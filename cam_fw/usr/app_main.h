@@ -10,7 +10,7 @@
 #ifndef __APP_MAIN_H__
 #define __APP_MAIN_H__
 
-#include "cdnet_dispatch.h"
+#include "cdnet_core.h"
 #include "cd_debug.h"
 #include "cdbus_uart.h"
 #include "cdctl_it.h"
@@ -118,5 +118,7 @@ extern cdctl_dev_t r_dev;
 extern camctl_dev_t cam_dev;
 extern list_head_t frame_free_head;
 extern cd_frame_t frame_alloc[];
+
+extern uint32_t end; // end of bss
 
 #endif
