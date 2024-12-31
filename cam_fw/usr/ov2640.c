@@ -264,11 +264,15 @@ int ov2640_init(void)
 
     ov_write_reg(&ov_dev, 0xff, 0x00);
     d_info("pclk: %04x\n", ov_read_reg(&ov_dev, 0xd3));
-    ov_write_reg(&ov_dev, 0xd3, 0x05);
+    ov_write_reg(&ov_dev, 0xd3, 0x08); // pclk: 4 MHz
     d_info("pclk: %04x\n", ov_read_reg(&ov_dev, 0xd3));
 
     ov_write_reg(&ov_dev, 0xff, 0x01);
-    ov_write_reg(&ov_dev, 0x11, 0x03);
+    ov_write_reg(&ov_dev, 0x11, 0x00);
+
+    // frame interval: 0x0df2 ((T_frame: 1190) x 3), 20fps -> 5fps
+    ov_write_reg(&ov_dev, 0x2a, 0x0d << 4);
+    ov_write_reg(&ov_dev, 0x2b, 0xf2);
 
     ov_light_mode(3);
     ov_color_saturation(0);
