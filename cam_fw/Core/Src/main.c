@@ -166,7 +166,7 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   __HAL_RCC_PLLCLKOUT_ENABLE(RCC_PLLRCLK);
-  HAL_RCC_MCOConfig(RCC_MCO_PA9, RCC_MCO1SOURCE_PLLCLK, RCC_MCODIV_8);
+  HAL_RCC_MCOConfig(RCC_MCO_PA9, RCC_MCO1SOURCE_PLLCLK, RCC_MCODIV_4);
 }
 
 /**
@@ -185,7 +185,7 @@ static void MX_I2C2_Init(void)
 
   /* USER CODE END I2C2_Init 1 */
   hi2c2.Instance = I2C2;
-  hi2c2.Init.Timing = 0x40F0323D;
+  hi2c2.Init.Timing = 0xC0613BB2;
   hi2c2.Init.OwnAddress1 = 0;
   hi2c2.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c2.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;

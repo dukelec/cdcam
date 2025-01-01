@@ -45,8 +45,8 @@ static void device_init(void)
     cdctl_dev_init(&r_dev, &frame_free_head, &csa.bus_cfg, &r_spi, NULL);
 
     if (r_dev.version >= 0x10) {
-        // 8MHz / (0 + 2) * (73 + 2) / 2^1 = 150MHz
-        //cdctl_write_reg(&r_dev, REG_PLL_N, 0x0);
+        // 16MHz / (2 + 2) * (73 + 2) / 2^1 = 150MHz
+        cdctl_write_reg(&r_dev, REG_PLL_N, 0x2);
         d_info("pll_n: %02x\n", cdctl_read_reg(&r_dev, REG_PLL_N));
         cdctl_write_reg(&r_dev, REG_PLL_ML, 0x49); // 0x49: 73
         d_info("pll_ml: %02x\n", cdctl_read_reg(&r_dev, REG_PLL_ML));
