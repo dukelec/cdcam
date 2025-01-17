@@ -105,10 +105,6 @@ void app_cam_init(void);
 void app_cam_routine(void);
 void pga_config(void);
 
-
-extern SPI_HandleTypeDef hspi1;
-extern SPI_HandleTypeDef hspi2;
-extern UART_HandleTypeDef huart1;
 extern gpio_t led_r;
 extern gpio_t led_g;
 extern gpio_t pga_rst;
@@ -116,6 +112,7 @@ extern gpio_t pga_cs;
 extern cdn_ns_t dft_ns;
 extern cdctl_dev_t r_dev;
 extern camctl_dev_t cam_dev;
+extern spi_t pga_spi;
 extern list_head_t frame_free_head;
 extern cd_frame_t frame_alloc[];
 

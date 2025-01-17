@@ -238,9 +238,9 @@ int ov_image_size(uint16_t width, uint16_t height)
 
 int ov2640_init(void)
 {
-    gpio_set_value(&ov_rst, 0);
+    gpio_set_val(&ov_rst, 0);
     delay_systick(10000 / SYSTICK_US_DIV);
-    gpio_set_value(&ov_rst, 1);
+    gpio_set_val(&ov_rst, 1);
     delay_systick(10000 / SYSTICK_US_DIV);
 
     ov_write_reg(&ov_dev, 0xff, 0x01);

@@ -46,7 +46,6 @@ typedef struct {
     const char      *name;
 
     camctl_state_t  state;
-    bool            manual_ctrl;
 
     list_head_t     *free_head;
     list_head_t     rx_head;
@@ -61,18 +60,19 @@ typedef struct {
 
     spi_t           *spi;
     gpio_t          *int_n;
+    irq_t           int_irq;
 } camctl_dev_t;
 
 
-void camctl_dev_init(camctl_dev_t *dev, list_head_t *free_head, spi_t *spi, gpio_t *int_n);
+void camctl_dev_init(camctl_dev_t *dev, list_head_t *free_head, spi_t *spi, gpio_t *int_n, irq_t int_irq);
 
-uint8_t camctl_read_reg(camctl_dev_t *dev, uint8_t reg);
-void camctl_write_reg(camctl_dev_t *dev, uint8_t reg, uint8_t val);
+uint8_t camctl_reg_r(camctl_dev_t *dev, uint8_t reg);
+void camctl_reg_w(camctl_dev_t *dev, uint8_t reg, uint8_t val);
 
 
 static inline void camctl_flush(camctl_dev_t *dev)
 {
-    camctl_write_reg(dev, CAM_REG_RX_CTRL, CAM_BIT_RX_RST_ALL);
+    camctl_reg_w(dev, CAM_REG_RX_CTRL, CAM_BIT_RX_RST_ALL);
 }
 
 static inline cd_frame_t *camctl_get_rx_frame(camctl_dev_t *dev)
