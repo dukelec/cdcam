@@ -10,7 +10,7 @@
 #include "math.h"
 #include "app_main.h"
 
-extern DMA_HandleTypeDef hdma_spi1_tx;
+extern spi_t r_spi;
 int ov_out_size(uint16_t width,uint16_t height);
 void ov_manual_exposure(uint16_t exposure);
 void ov_manual_agc(uint8_t agc);
@@ -69,7 +69,7 @@ uint8_t cam_cfg_hook(uint16_t sub_offset, uint8_t len, uint8_t *dat)
 void app_cam_init(void)
 {
     ov2640_init();
-    cdctl_write_reg(&r_dev, REG_INT_MASK, BIT_FLAG_TX_BUF_CLEAN);
+    cdctl_reg_w(&r_dev, REG_INT_MASK, BIT_FLAG_TX_BUF_CLEAN);
 
     frame_prepare = list_get_entry(&frame_free_head, cd_frame_t);
     init_frame_cam(0);
@@ -85,7 +85,7 @@ void app_cam_init(void)
 void app_cam_routine(void)
 {
     static int v_last = 0;
-    int v_cur = GPIOB->IDR & 0x4;
+    int v_cur = CAM_VSYNC_GPIO_Port->IDR & CAM_VSYNC_Pin;
     bool v_stop = v_last && !v_cur;
     v_last = v_cur;
 
@@ -103,7 +103,7 @@ void app_cam_routine(void)
 
     // speed up without using HAL library
     while (status) {
-        //GPIOB->BSRR = 0x4000;
+        //GPIOB->BSRR = 0x4000; // PB14
 
         update_prepare();
         if (!status)
@@ -129,35 +129,26 @@ void app_cam_routine(void)
         if (!r_dev.is_pending && r_dev.tx_head.first) {
             cd_frame_t *frame = list_get_entry(&r_dev.tx_head, cd_frame_t);
 
-            GPIOA->BRR = 0x8000; // cs = 0
-            *((volatile uint8_t *)&hspi1.Instance->DR) = REG_TX | 0x80;
+            uint8_t *buf = frame->dat - 1;
+            *buf = REG_TX | 0x80; // borrow space from the "node" item
 
-            __HAL_DMA_DISABLE(&hdma_spi1_tx);
-            hdma_spi1_tx.Instance->CNDTR = frame->dat[2] + 3;
-            hdma_spi1_tx.Instance->CPAR = (uint32_t)&hspi1.Instance->DR;
-            hdma_spi1_tx.Instance->CMAR = (uint32_t)frame->dat;
-            __HAL_DMA_ENABLE(&hdma_spi1_tx);
-            SET_BIT(hspi1.Instance->CR2, SPI_CR2_TXDMAEN);
-
-            while (hdma_spi1_tx.Instance->CNDTR != 0);
-            while (hspi1.Instance->SR & SPI_FLAG_BSY);
-            GPIOA->BSRR = 0x8000; // cs = 1
+            CD_CS_GPIO_Port->BRR = CD_CS_Pin; // cs = 0
+            spi_wr(&r_spi, buf, NULL, buf[3] + 4);
+            CD_CS_GPIO_Port->BSRR = CD_CS_Pin; // cs = 1
 
             r_dev.is_pending = true;
             list_put(&frame_free_head, &frame->node);
         }
 
-        if (r_dev.is_pending && !(GPIOD->IDR & 8)) { // pd3
-            GPIOA->BRR = 0x8000; // cs = 0
-            *((volatile uint8_t *)&hspi1.Instance->DR) = REG_TX_CTRL | 0x80;
-            while (!(hspi1.Instance->SR & SPI_FLAG_TXE));
-            *((volatile uint8_t *)&hspi1.Instance->DR) = BIT_TX_START | BIT_TX_RST_POINTER;
-            while (hspi1.Instance->SR & SPI_FLAG_BSY);
-            GPIOA->BSRR = 0x8000; // cs = 1
+        if (r_dev.is_pending && !(CD_INT_GPIO_Port->IDR & CD_INT_Pin)) {
+            uint8_t buf[2] = {REG_TX_CTRL | 0x80, BIT_TX_START | BIT_TX_RST_POINTER};
+            CD_CS_GPIO_Port->BRR = CD_CS_Pin; // cs = 0
+            spi_wr(&r_spi, buf, NULL, 2);
+            CD_CS_GPIO_Port->BSRR = CD_CS_Pin; // cs = 1
             r_dev.is_pending = false;
         }
 
-        v_cur = GPIOB->IDR & 0x4;
+        v_cur = CAM_VSYNC_GPIO_Port->IDR & CAM_VSYNC_Pin;
         v_stop = v_last && !v_cur;
         v_last = v_cur;
         if (v_stop)
@@ -198,12 +189,12 @@ __attribute__((optimize("-Ofast"))) \
 void EXTI0_1_IRQHandler(void)
 {
     __HAL_GPIO_EXTI_CLEAR_RISING_IT(GPIO_PIN_0);
-    if (status == 0 || pl[pp_idx] >= pl_max || (GPIOB->IDR & 0x6) != 0x6)
+    if (status == 0 || pl[pp_idx] >= pl_max || (GPIOB->IDR & 0x6) != 0x6) // CAM_HREF_Pin | CAM_VSYNC_Pin
         return;
     *(pp[pp_idx] + pl[pp_idx]) = GPIOA->IDR;
     if (++pl[pp_idx] >= pl_max)
         pp_idx = !pp_idx;
 
-    //GPIOB->BSRR = 0x1000;
+    //GPIOB->BSRR = 0x1000; // PB12
     //GPIOB->BRR = 0x1000;
 }

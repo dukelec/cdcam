@@ -25,7 +25,7 @@
 #define APP_CONF_VER        0x0103
 
 #define FRAME_MAX           110
-#define PACKET_MAX          6
+#define PACKET_MAX          10
 
 
 typedef struct {
