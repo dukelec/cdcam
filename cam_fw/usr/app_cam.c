@@ -47,7 +47,7 @@ static inline void init_frame_cam(int idx)
 static inline void update_prepare(void)
 {
     if (!frame_prepare)
-        frame_prepare = list_get_entry(&frame_free_head, cd_frame_t);
+        frame_prepare = cd_list_get(&frame_free_head);
 
     if (!frame_prepare && status) {
         status = 0;
@@ -71,9 +71,9 @@ void app_cam_init(void)
     ov2640_init();
     cdctl_reg_w(&r_dev, REG_INT_MASK, BIT_FLAG_TX_BUF_CLEAN);
 
-    frame_prepare = list_get_entry(&frame_free_head, cd_frame_t);
+    frame_prepare = cd_list_get(&frame_free_head);
     init_frame_cam(0);
-    frame_prepare = list_get_entry(&frame_free_head, cd_frame_t);
+    frame_prepare = cd_list_get(&frame_free_head);
     init_frame_cam(1);
 
     HAL_NVIC_SetPriority(EXTI0_1_IRQn, 1, 0);
@@ -121,13 +121,13 @@ void app_cam_routine(void)
             init_frame_cam(!pp_idx);
             // 01: first, 10: more, 11: last
             frame->dat[5] |= ((status == 1 ? 1 : 2) << 4) | (frame_cnt++ & 0xf);
-            list_put(&r_dev.tx_head, &frame->node);
+            cd_list_put(&r_dev.tx_head, frame);
             if (status == 1)
                 status = 2;
         }
 
         if (!r_dev.is_pending && r_dev.tx_head.first) {
-            cd_frame_t *frame = list_get_entry(&r_dev.tx_head, cd_frame_t);
+            cd_frame_t *frame = cd_list_get(&r_dev.tx_head);
 
             uint8_t *buf = frame->dat - 1;
             *buf = REG_TX | 0x80; // borrow space from the "node" item
@@ -137,7 +137,7 @@ void app_cam_routine(void)
             CD_CS_GPIO_Port->BSRR = CD_CS_Pin; // cs = 1
 
             r_dev.is_pending = true;
-            list_put(&frame_free_head, &frame->node);
+            cd_list_put(&frame_free_head, frame);
         }
 
         if (r_dev.is_pending && !(CD_INT_GPIO_Port->IDR & CD_INT_Pin)) {
