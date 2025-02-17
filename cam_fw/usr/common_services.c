@@ -170,7 +170,7 @@ static uint8_t csa_hook_exec(bool after, uint16_t offset, uint8_t len, uint8_t *
 // csa manipulation
 static void p5_service_routine(void)
 {
-    uint32_t flags;
+    //uint32_t flags;
     uint8_t ret_val = 0;
     // read:        0x00, offset_16, len_8   | return [0x80, data]
     // read_dft:    0x01, offset_16, len_8   | return [0x80, data]
@@ -194,9 +194,9 @@ static void p5_service_routine(void)
 
         ret_val = csa_hook_exec(false, offset, len, NULL);
         if (!ret_val) {
-            local_irq_save(flags);
+            //local_irq_save(flags);
             memcpy(pkt->dat + 1, ((void *) &csa) + offset, len);
-            local_irq_restore(flags);
+            //local_irq_restore(flags);
             ret_val = csa_hook_exec(true, offset, len, NULL);
         }
 
@@ -226,9 +226,9 @@ static void p5_service_routine(void)
                 //printf("csa @ %p, %p <- %p, len %d, dat[0]: %x\n",
                 //        &csa, ((void *) &csa) + start, src_dat + (start - offset), end - start,
                 //        *(src_dat + (start - offset)));
-                local_irq_save(flags);
+                //local_irq_save(flags);
                 memcpy(((void *) &csa) + start, src_dat + (start - offset), end - start);
-                local_irq_restore(flags);
+                //local_irq_restore(flags);
             }
             ret_val = csa_hook_exec(true, offset, len, src_dat);
         }
@@ -272,8 +272,10 @@ void common_service_routine(void)
         csa.save_conf = false;
         save_conf();
     }
-    if (csa.do_reboot)
+    if (csa.do_reboot) {
+        *(uint32_t *)BL_ARGS = 0xcdcd0000 | csa.do_reboot;
         NVIC_SystemReset();
+    }
     p1_service_routine();
     p5_service_routine();
     p8_service_routine();

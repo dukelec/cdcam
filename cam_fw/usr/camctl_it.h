@@ -77,7 +77,7 @@ static inline void camctl_flush(camctl_dev_t *dev)
 
 static inline cd_frame_t *camctl_get_rx_frame(camctl_dev_t *dev)
 {
-    return list_get_entry_it(&dev->rx_head, cd_frame_t);
+    return cd_list_get(&dev->rx_head);
 }
 
 void camctl_int_isr(camctl_dev_t *dev);

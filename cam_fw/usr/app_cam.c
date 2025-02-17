@@ -106,7 +106,7 @@ void app_cam_routine(void)
         } else {
             cd_frame_t *frame = camctl_get_rx_frame(&cam_dev);
             if (frame) {
-                list_put(&frame_free_head, &frame->node);
+                cd_list_put(&frame_free_head, frame);
                 //d_debug("cam: drop\n");
             }
             if (cam_enable) {
@@ -120,7 +120,7 @@ void app_cam_routine(void)
             //printf("f size: %d, flag: %02x\n", frame->dat[2], frame->dat[5]);
             if (status == 1) {
                 if (frame->dat[5] != 0x10) {
-                    list_put(&frame_free_head, &frame->node);
+                    cd_list_put(&frame_free_head, frame);
                     //d_debug("cam: drop & wait\n");
                 } else {
                     status = 2;

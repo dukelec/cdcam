@@ -37,7 +37,7 @@ void camctl_dev_init(camctl_dev_t *dev, list_head_t *free_head, spi_t *spi, gpio
 {
     if (!dev->name)
         dev->name = "camctl";
-    dev->rx_frame = list_get_entry(free_head, cd_frame_t);
+    dev->rx_frame = cd_list_get(free_head);
     dev->free_head = free_head;
 
 #ifdef USE_DYNAMIC_INIT
@@ -156,9 +156,9 @@ void camctl_spi_isr(camctl_dev_t *dev)
     // end of CAMCTL_RX_BODY
     if (dev->state == CAMCTL_RX_BODY) {
         gpio_set_high(dev->spi->ns_pin);
-        cd_frame_t *frame = list_get_entry_it(dev->free_head, cd_frame_t);
+        cd_frame_t *frame = cd_list_get(dev->free_head);
         if (frame) {
-            list_put_it(&dev->rx_head, &dev->rx_frame->node);
+            cd_list_put(&dev->rx_head, dev->rx_frame);
             dev->rx_frame = frame;
             dev->rx_cnt++;
         } else {
