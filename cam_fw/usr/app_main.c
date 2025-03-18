@@ -10,8 +10,6 @@
 #include "math.h"
 #include "app_main.h"
 
-int CDCTL_SYS_CLK = 150000000; // 150MHz for cdctl01a
-
 gpio_t led_r = { .group = LED_R_GPIO_Port, .num = LED_R_Pin };
 gpio_t led_g = { .group = LED_G_GPIO_Port, .num = LED_G_Pin };
 static gpio_t led_cam = { .group = LED_CAM_GPIO_Port, .num = LED_CAM_Pin };
@@ -49,26 +47,6 @@ static void device_init(void)
 
     spi_wr_init(&r_spi);
     cdctl_dev_init(&r_dev, &frame_free_head, &csa.bus_cfg, &r_spi, NULL);
-
-    if (r_dev.version >= 0x10) {
-        // 16MHz / (2 + 2) * (73 + 2) / 2^1 = 150MHz
-        cdctl_reg_w(&r_dev, REG_PLL_N, 0x2);
-        d_info("pll_n: %02x\n", cdctl_reg_r(&r_dev, REG_PLL_N));
-        cdctl_reg_w(&r_dev, REG_PLL_ML, 0x49); // 0x49: 73
-        d_info("pll_ml: %02x\n", cdctl_reg_r(&r_dev, REG_PLL_ML));
-
-        d_info("pll_ctrl: %02x\n", cdctl_reg_r(&r_dev, REG_PLL_CTRL));
-        cdctl_reg_w(&r_dev, REG_PLL_CTRL, 0x10); // enable pll
-        d_info("clk_status: %02x\n", cdctl_reg_r(&r_dev, REG_CLK_STATUS));
-        cdctl_reg_w(&r_dev, REG_CLK_CTRL, 0x01); // select pll
-
-        d_info("clk_status after select pll: %02x\n", cdctl_reg_r(&r_dev, REG_CLK_STATUS));
-        d_info("version after select pll: %02x\n", cdctl_reg_r(&r_dev, REG_VERSION));
-    } else {
-        d_info("fallback to cdctl-b1 module, ver: %02x\n", r_dev.version);
-        CDCTL_SYS_CLK = 40000000; // 40MHz
-        cdctl_set_baud_rate(&r_dev, csa.bus_cfg.baud_l, csa.bus_cfg.baud_h);
-    }
 
     cdn_add_intf(&dft_ns, &r_dev.cd_dev, csa.bus_net, csa.bus_cfg.mac);
 }
