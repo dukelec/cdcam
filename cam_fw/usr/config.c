@@ -156,7 +156,7 @@ void csa_list_show(void)
     CSA_SHOW(0, conf_from, "0: default config, 1: all from flash, 2: partly from flash"); debug_flush(true);
     CSA_SHOW(0, do_reboot, "1: reboot to bl, 2: reboot to app");
     CSA_SHOW(0, save_conf, "Write 1 to save current config to flash");
-    d_info("\n"); debug_flush(true);
+    d_info("\n"); debug_flush(true); while (r_dev.tx_head.len) {}
 
     CSA_SHOW_SUB(1, bus_cfg, cdctl_cfg_t, mac, "RS-485 port id, range: 0~254");
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, baud_l, "RS-485 baud rate for first byte"); debug_flush(true);
@@ -175,7 +175,7 @@ void csa_list_show(void)
 
     CSA_SHOW_SUB(2, cam_dst, cdn_sockaddr_t, addr, "Send jpg to this address");
     CSA_SHOW_SUB(1, cam_dst, cdn_sockaddr_t, port, "Send jpg to this port");
-    d_info("\n"); debug_flush(true);
+    d_info("\n"); debug_flush(true); while (r_dev.tx_head.len) {}
 
     CSA_SHOW(0, width, "Picture width");
     CSA_SHOW(0, height, "Picture height");
@@ -188,5 +188,5 @@ void csa_list_show(void)
 
     CSA_SHOW(0, capture, "Write 1 capture single image, write 255 keep capture");
     CSA_SHOW(0, led_en, "LED enable / disable");
-    d_info("\n"); debug_flush(true);
+    d_info("\n"); debug_flush(true); while (r_dev.tx_head.len) {}
 }
