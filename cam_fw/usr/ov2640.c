@@ -239,13 +239,13 @@ int ov_image_size(uint16_t width, uint16_t height)
 int ov2640_init(void)
 {
     gpio_set_val(&ov_rst, 0);
-    delay_systick(10000 / SYSTICK_US_DIV);
+    delay_systick(10000 / CD_SYSTICK_US_DIV);
     gpio_set_val(&ov_rst, 1);
-    delay_systick(10000 / SYSTICK_US_DIV);
+    delay_systick(10000 / CD_SYSTICK_US_DIV);
 
     ov_write_reg(&ov_dev, 0xff, 0x01);
     ov_write_reg(&ov_dev, OV_SEN_COM7, 0x80); // soft reset
-    delay_systick(50000 / SYSTICK_US_DIV);
+    delay_systick(50000 / CD_SYSTICK_US_DIV);
 
     uint16_t ov_mid = (ov_read_reg(&ov_dev, OV_SEN_MIDH) << 8) | ov_read_reg(&ov_dev, OV_SEN_MIDL);
     uint16_t ov_pid = (ov_read_reg(&ov_dev, OV_SEN_PIDH) << 8) | ov_read_reg(&ov_dev, OV_SEN_PIDL);

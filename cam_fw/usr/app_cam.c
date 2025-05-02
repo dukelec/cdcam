@@ -33,9 +33,9 @@ void pga_config(void)
 
     gpio_set_val(&pga_cs, 0);
     gpio_set_val(&pga_rst, 0);
-    delay_systick(4000 / SYSTICK_US_DIV);
+    delay_systick(4000 / CD_SYSTICK_US_DIV);
     gpio_set_val(&pga_rst, 1);
-    delay_systick(4000 / SYSTICK_US_DIV);
+    delay_systick(4000 / CD_SYSTICK_US_DIV);
     gpio_set_val(&pga_cs, 1);
     spi_wr(&pga_spi, NULL, NULL, 1);
     gpio_set_val(&pga_cs, 0);
