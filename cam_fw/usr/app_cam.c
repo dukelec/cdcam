@@ -69,7 +69,7 @@ uint8_t cam_cfg_hook(uint16_t sub_offset, uint8_t len, uint8_t *dat)
 void app_cam_init(void)
 {
     ov2640_init();
-    cdctl_reg_w(&r_dev, REG_INT_MASK, BIT_FLAG_TX_BUF_CLEAN);
+    cdctl_reg_w(&r_dev, CDREG_INT_MASK, CDBIT_FLAG_TX_BUF_CLEAN);
 
     frame_prepare = cd_list_get(&frame_free_head);
     init_frame_cam(0);
@@ -130,7 +130,7 @@ void app_cam_routine(void)
             cd_frame_t *frame = cd_list_get(&r_dev.tx_head);
 
             uint8_t *buf = frame->dat - 1;
-            *buf = REG_TX | 0x80; // borrow space from the "node" item
+            *buf = CDREG_TX | 0x80; // borrow space from the "node" item
 
             CD_CS_GPIO_Port->BRR = CD_CS_Pin; // cs = 0
             spi_wr(&r_spi, buf, NULL, buf[3] + 4);
@@ -141,7 +141,7 @@ void app_cam_routine(void)
         }
 
         if (r_dev.is_pending && !(CD_INT_GPIO_Port->IDR & CD_INT_Pin)) {
-            uint8_t buf[2] = {REG_TX_CTRL | 0x80, BIT_TX_START | BIT_TX_RST_POINTER};
+            uint8_t buf[2] = {CDREG_TX_CTRL | 0x80, CDBIT_TX_START | CDBIT_TX_RST_POINTER};
             CD_CS_GPIO_Port->BRR = CD_CS_Pin; // cs = 0
             spi_wr(&r_spi, buf, NULL, 2);
             CD_CS_GPIO_Port->BSRR = CD_CS_Pin; // cs = 1
