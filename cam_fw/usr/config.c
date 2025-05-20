@@ -16,7 +16,7 @@ regr_t csa_w_allow[] = {
 
 csa_hook_t csa_w_hook[] = {
         {
-            .range = { .offset = offsetof(csa_t, exposure), .size = offsetof(csa_t, _reserved1) - offsetof(csa_t, exposure) },
+            .range = { .offset = offsetof(csa_t, exposure), .size = offsetof(csa_t, _reserved2) - offsetof(csa_t, exposure) },
             .after = cam_cfg_hook
         }
 };
@@ -34,8 +34,7 @@ const csa_t csa_dft = {
         .bus_net = 0,
         .bus_cfg = CDCTL_CFG_DFT(0xfe),
         .dbg_en = false,
-        .dbg_dst = { .addr = {0x80, 0x00, 0x00}, .port = 9 },
-        .cam_dst = { .addr = {0x80, 0x00, 0x00}, .port = 0x10 },
+        .cam_dst = { .addr = {0x00, 0x00, 0x00}, .port = 0x10 },
         .width = 640,
         .height = 480,
         .manual = false,
@@ -99,7 +98,7 @@ int flash_erase(uint32_t addr, uint32_t len)
     if (ret == HAL_OK)
         ret = HAL_FLASHEx_Erase(&f, &err_sector);
     ret |= HAL_FLASH_Lock();
-    d_debug("nvm erase: %08x +%08x (%d %d), %08x, ret: %d\n", addr, len, f.Page, f.NbPages, err_sector, ret);
+    d_debug("nvm erase: %08lx +%08lx (%ld %ld), %08lx, ret: %d\n", addr, len, f.Page, f.NbPages, err_sector, ret);
     return ret;
 }
 
@@ -119,7 +118,7 @@ int flash_write(uint32_t addr, uint32_t len, const uint8_t *buf)
     }
     ret |= HAL_FLASH_Lock();
 
-    d_verbose("nvm write: %08x %d(%d), ret: %d\n", dst_dat, len, cnt, ret);
+    d_verbose("nvm write: %p %ld(%d), ret: %d\n", dst_dat, len, cnt, ret);
     return ret;
 }
 
@@ -149,44 +148,41 @@ int flash_write(uint32_t addr, uint32_t len, const uint8_t *buf)
 
 void csa_list_show(void)
 {
-    debug_flush(true);
-    d_info("csa_list_show:\n\n"); debug_flush(true);
+    d_info("csa_list_show:\n\n");
 
     CSA_SHOW(1, conf_ver, "Config version");
-    CSA_SHOW(0, conf_from, "0: default config, 1: all from flash, 2: partly from flash"); debug_flush(true);
+    CSA_SHOW(0, conf_from, "0: default config, 1: all from flash, 2: partly from flash");
     CSA_SHOW(0, do_reboot, "1: reboot to bl, 2: reboot to app");
     CSA_SHOW(0, save_conf, "Write 1 to save current config to flash");
-    d_info("\n"); debug_flush(true); while (r_dev.tx_head.len) {}
+    d_info("\n");
 
     CSA_SHOW_SUB(1, bus_cfg, cdctl_cfg_t, mac, "RS-485 port id, range: 0~254");
-    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, baud_l, "RS-485 baud rate for first byte"); debug_flush(true);
+    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, baud_l, "RS-485 baud rate for first byte");
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, baud_h, "RS-485 baud rate for follow bytes");
-    CSA_SHOW_SUB(1, bus_cfg, cdctl_cfg_t, filter_m, "Multicast address"); debug_flush(true);
+    CSA_SHOW_SUB(1, bus_cfg, cdctl_cfg_t, filter_m, "Multicast address");
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, mode, "0: Arbitration, 1: Break Sync");
-    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, tx_permit_len, "Allow send wait time"); debug_flush(true);
+    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, tx_permit_len, "Allow send wait time");
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, max_idle_len, "Max idle wait time for BS mode");
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, tx_pre_len, " Active TX_EN before TX");
-    d_debug("\n"); debug_flush(true);
+    d_debug("\n");
 
     CSA_SHOW(0, dbg_en, "1: Report debug message to host, 0: do not report");
-    CSA_SHOW_SUB(2, dbg_dst, cdn_sockaddr_t, addr, "Send debug message to this address");
-    CSA_SHOW_SUB(1, dbg_dst, cdn_sockaddr_t, port, "Send debug message to this port");
-    d_info("\n"); debug_flush(true);
+    d_info("\n");
 
     CSA_SHOW_SUB(2, cam_dst, cdn_sockaddr_t, addr, "Send jpg to this address");
     CSA_SHOW_SUB(1, cam_dst, cdn_sockaddr_t, port, "Send jpg to this port");
-    d_info("\n"); debug_flush(true); while (r_dev.tx_head.len) {}
+    d_info("\n");
 
     CSA_SHOW(0, width, "Picture width");
     CSA_SHOW(0, height, "Picture height");
-    d_info("\n"); debug_flush(true);
+    d_info("\n");
     
     CSA_SHOW(0, manual, "0: Auto mode; 1: Manual mode");
     CSA_SHOW(0, exposure, "Exposure (AEC)");
     CSA_SHOW(0, agc, "AGC");
-    d_info("\n"); debug_flush(true);
+    d_info("\n");
 
     CSA_SHOW(0, capture, "Write 1 capture single image, write 255 keep capture");
     CSA_SHOW(0, led_en, "LED enable / disable");
-    d_info("\n"); debug_flush(true); while (r_dev.tx_head.len) {}
+    d_info("\n");
 }

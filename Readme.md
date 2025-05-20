@@ -7,8 +7,28 @@ RS-485 wire housing: Molex 5264 (4 pin)
 
 Download this project:
 ```
-git clone --recurse-submodules https://github.com/dukelec/cdcam.git
+git clone --recursive https://github.com/dukelec/cdcam.git
 ```
+
+
+## Protocol
+
+CDCAM is an open-source serial camera that communicates over an RS485 interface.
+ - Default baud rate: 115200 bps
+ - Maximum speed: 50 Mbps
+ - Default address: 0xfe
+
+The underlying protocol is CDBUS, with the following frame format:  
+`src, dst, len, [payload], crc_l, crc_h`
+
+Each frame includes a 3-byte header, a variable-length payload, and a 2-byte CRC (identical to Modbus CRC).  
+For more information on the CDBUS protocol, please refer to:
+ - https://cdbus.org
+
+The payload is encoded using the CDNET protocol. For detailed information, please refer to:
+ - https://github.com/dukelec/cdnet
+ - https://github.com/dukelec/cdnet/wiki/CDNET-Intro-and-Demo
+
 
 ## GUI Tool
 
@@ -30,7 +50,7 @@ If you need to restore the default configuration, change `magic_code` to another
 
 ## Hardware
 
-Schematic: <a href="hardware/cdcam_sch_v2.0.pdf">cdcam_sch_v2.0.pdf</a>
+Schematic: <a href="hardware/cdcam_sch_v3.0.pdf">cdcam_sch_v3.0.pdf</a>
 
 Hardware without FPGA please switch to branch: `hw_v1`
 

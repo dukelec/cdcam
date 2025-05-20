@@ -73,14 +73,14 @@ static void dump_hw_status(void)
     if (get_systick() - t_l > 8000) {
         t_l = get_systick();
 
-        d_debug("ctl: state %d, t_len %d, r_len %d, irq %d\n",
+        d_debug("ctl: state %d, t_len %ld, r_len %ld, irq %d\n",
                 r_dev.state, r_dev.tx_head.len, r_dev.rx_head.len,
                 !gpio_get_val(r_dev.int_n));
-        d_debug("  r_cnt %d (lost %d, err %d, no-free %d), t_cnt %d (cd %d, err %d)\n",
+        d_debug("  r_cnt %ld (lost %ld, err %ld, no-free %ld), t_cnt %ld (cd %ld, err %ld)\n",
                 r_dev.rx_cnt, r_dev.rx_lost_cnt, r_dev.rx_error_cnt,
                 r_dev.rx_no_free_node_cnt,
                 r_dev.tx_cnt, r_dev.tx_cd_cnt, r_dev.tx_error_cnt);
-        d_debug("cam: state %d, r_len %d, irq %d | r_cnt %d (lost %d, no-free %d)\n",
+        d_debug("cam: state %d, r_len %ld, irq %d | r_cnt %ld (lost %ld, no-free %ld)\n",
                 cam_dev.state, cam_dev.rx_head.len, !gpio_get_val(cam_dev.int_n),
                 cam_dev.rx_cnt, cam_dev.rx_lost_cnt, cam_dev.rx_no_free_node_cnt);
     }
@@ -105,9 +105,7 @@ void app_main(void)
 
     load_conf();
     pga_config();
-    debug_init(&dft_ns, &csa.dbg_dst, &csa.dbg_en);
     device_init();
-    debug_flush(true);
     common_service_init();
     d_info("conf (cam): %s\n", csa.conf_from ? "load from flash" : "use default");
 
@@ -126,7 +124,6 @@ void app_main(void)
         cdn_routine(&dft_ns); // handle cdnet
         common_service_routine();
         gpio_set_val(&led_cam, csa.led_en);
-        debug_flush(false);
 
         if (*stack_check != 0xababcdcd12123434) {
             printf("stack overflow\n");

@@ -65,10 +65,9 @@ static inline void sent_cam_frame(cd_frame_t *frame)
 {
     frame->dat[0] = csa.bus_cfg.mac;
     frame->dat[1] = csa.cam_dst.addr[2];
-    frame->dat[3] = 0x80;
-    frame->dat[4] = csa.cam_dst.port;
     // [5:4] FRAGMENT: 00: error, 01: first, 10: more, 11: last, [3:0]: cnt
-    frame->dat[5] |= 0x40;
+    frame->dat[3] |= 0x40;
+    frame->dat[4] = csa.cam_dst.port;
     r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame);
 }
 
@@ -117,9 +116,9 @@ void app_cam_routine(void)
     } else {
         cd_frame_t *frame = camctl_get_rx_frame(&cam_dev);
         if (frame) {
-            //printf("f size: %d, flag: %02x\n", frame->dat[2], frame->dat[5]);
+            //printf("f size: %d, flag: %02x\n", frame->dat[2], frame->dat[3]);
             if (status == 1) {
-                if (frame->dat[5] != 0x10) {
+                if (frame->dat[3] != 0x10) {
                     cd_list_put(&frame_free_head, frame);
                     //d_debug("cam: drop & wait\n");
                 } else {
@@ -128,13 +127,13 @@ void app_cam_routine(void)
                     sent_cam_frame(frame);
                 }
             } else {
-                uint8_t type = frame->dat[5] >> 4;
-                uint8_t cnt = frame->dat[5] & 0xf;
+                uint8_t type = frame->dat[3] >> 4;
+                uint8_t cnt = frame->dat[3] & 0xf;
                 if ((type == 2 || type == 3) && cnt == frame_cnt) {
                     sent_cam_frame(frame);
                 } else {
-                    d_debug("cam: err, flg: %02x, cnt: %02x\n", frame->dat[5], frame_cnt);
-                    frame->dat[5] = cnt; // change type to err
+                    d_debug("cam: err, flg: %02x, cnt: %02x\n", frame->dat[3], frame_cnt);
+                    frame->dat[3] = cnt; // change type to err
                     sent_cam_frame(frame);
                 }
                 if (type == 3) {
