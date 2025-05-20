@@ -33,13 +33,12 @@ static inline void init_frame_cam(int idx)
     frame_cam[idx] = frame_prepare;
     frame_cam[idx]->dat[0] = csa.bus_cfg.mac;
     frame_cam[idx]->dat[1] = csa.cam_dst.addr[2];
-    frame_cam[idx]->dat[2] = 3;
-    frame_cam[idx]->dat[3] = 0x80;
-    frame_cam[idx]->dat[4] = csa.cam_dst.port;
+    frame_cam[idx]->dat[2] = 2;
     // [5:4] FRAGMENT: 00: error, 01: first, 10: more, 11: last, [3:0]: cnt
-    frame_cam[idx]->dat[5] = 0x40;
+    frame_cam[idx]->dat[3] = 0x40;
+    frame_cam[idx]->dat[4] = csa.cam_dst.port;
 
-    pp[idx] = frame_cam[idx]->dat + 6;
+    pp[idx] = frame_cam[idx]->dat + 5;
     pl[idx] = 0;
     frame_prepare = NULL;
 }
@@ -120,7 +119,7 @@ void app_cam_routine(void)
             frame_cam[!pp_idx]->dat[2] += pl[!pp_idx];
             init_frame_cam(!pp_idx);
             // 01: first, 10: more, 11: last
-            frame->dat[5] |= ((status == 1 ? 1 : 2) << 4) | (frame_cnt++ & 0xf);
+            frame->dat[3] |= ((status == 1 ? 1 : 2) << 4) | (frame_cnt++ & 0xf);
             cd_list_put(&r_dev.tx_head, frame);
             if (status == 1)
                 status = 2;
@@ -136,7 +135,7 @@ void app_cam_routine(void)
             spi_wr(&r_spi, buf, NULL, buf[3] + 4);
             CD_CS_GPIO_Port->BSRR = CD_CS_Pin; // cs = 1
 
-            r_dev.is_pending = true;
+            r_dev.is_pending = frame;
             cd_list_put(&frame_free_head, frame);
         }
 
@@ -145,7 +144,7 @@ void app_cam_routine(void)
             CD_CS_GPIO_Port->BRR = CD_CS_Pin; // cs = 0
             spi_wr(&r_spi, buf, NULL, 2);
             CD_CS_GPIO_Port->BSRR = CD_CS_Pin; // cs = 1
-            r_dev.is_pending = false;
+            r_dev.is_pending = NULL;
         }
 
         v_cur = CAM_VSYNC_GPIO_Port->IDR & CAM_VSYNC_Pin;
@@ -160,7 +159,7 @@ void app_cam_routine(void)
     update_prepare();
     if (frame_prepare && status && v_stop) {
         // 01: first, 10: more, 11: last
-        frame_cam[pp_idx]->dat[5] |= (3 << 4) | (frame_cnt & 0xf);
+        frame_cam[pp_idx]->dat[3] |= (3 << 4) | (frame_cnt & 0xf);
         frame_cam[pp_idx]->dat[2] += pl[pp_idx];
         r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_cam[pp_idx]);
         init_frame_cam(pp_idx);
@@ -175,11 +174,10 @@ void app_cam_routine(void)
         err_flag = false;
         frame_prepare->dat[0] = csa.bus_cfg.mac;
         frame_prepare->dat[1] = csa.cam_dst.addr[2];
-        frame_prepare->dat[2] = 3;
-        frame_prepare->dat[3] = 0x80;
-        frame_prepare->dat[4] = csa.cam_dst.port;
+        frame_prepare->dat[2] = 2;
         // [5:4] FRAGMENT: 00: error, 01: first, 10: more, 11: last, [3:0]: cnt
-        frame_prepare->dat[5] = 0x40 | (frame_cnt & 0xf);
+        frame_prepare->dat[3] = 0x40 | (frame_cnt & 0xf);
+        frame_prepare->dat[4] = csa.cam_dst.port;
         r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame_prepare);
         frame_prepare = NULL;
     }
