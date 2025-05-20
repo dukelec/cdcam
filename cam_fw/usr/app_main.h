@@ -46,24 +46,24 @@ typedef struct {
     uint8_t         bus_net;
     cdctl_cfg_t     bus_cfg;
     bool            dbg_en;
-    cdn_sockaddr_t  dbg_dst;
+    uint8_t         _reserved0[6];
     #define         _end_common cam_dst
 
     cdn_sockaddr_t  cam_dst;
     uint16_t        width;
     uint16_t        height;
 
-    uint8_t         _reserved0[12];
+    uint8_t         _reserved1[12];
     bool            manual;
     uint16_t        exposure;
     uint8_t         agc;
-    uint8_t         _reserved1[24];
+    uint8_t         _reserved2[24];
 
     // end of flash
     #define         _end_save capture
 
     uint8_t         capture;
-    uint8_t         _reserved2[9];
+    uint8_t         _reserved3[9];
     bool            led_en;
 
 } csa_t; // config status area
