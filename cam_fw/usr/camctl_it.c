@@ -65,7 +65,6 @@ void camctl_dev_init(camctl_dev_t *dev, list_head_t *free_head, spi_t *spi, gpio
             last_ver = ver;
             same_cnt = 0;
         }
-        debug_flush(false);
     }
     dn_info(dev->name, "version: %02x\n", last_ver);
     //camctl_reg_w(dev, CAM_REG_SETTING, setting);
@@ -134,8 +133,8 @@ void camctl_spi_isr(camctl_dev_t *dev)
     // end of CAMCTL_RX_PAGE_FLAG
     if (dev->state == CAMCTL_RX_PAGE_FLAG) {
         gpio_set_high(dev->spi->ns_pin);
-        dev->rx_frame->dat[2] = 3 + dev->buf[1];
-        dev->rx_frame->dat[5] = dev->buf[2];
+        dev->rx_frame->dat[2] = 2 + dev->buf[1];
+        dev->rx_frame->dat[3] = dev->buf[2];
         
         dev->state = CAMCTL_RX_HEADER;
         dev->buf[0] = CAM_REG_RX;
@@ -148,7 +147,7 @@ void camctl_spi_isr(camctl_dev_t *dev)
     if (dev->state == CAMCTL_RX_HEADER) {
         dev->state = CAMCTL_RX_BODY;
         if (dev->buf[1] != 0) {
-            spi_wr_it(dev->spi, NULL, dev->rx_frame->dat + 6, dev->buf[1]);
+            spi_wr_it(dev->spi, NULL, dev->rx_frame->dat + 5, dev->buf[1]);
             return; // should always return
         } // no return
     }
