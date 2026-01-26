@@ -1,0 +1,3 @@
+dependencies:
+  esp_sccb_intf:
+    version: '>=0.0.2'
