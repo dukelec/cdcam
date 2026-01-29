@@ -21,7 +21,7 @@
 #define __ASM_STR(x)    #x
 
 
-#define csr_set(csr, val)                                \
+#define _csr_set(csr, val)                               \
 ({                                                       \
     unsigned long __v = (unsigned long)(val);            \
     __asm__ __volatile__ ("csrs " __ASM_STR(csr) ", %0"  \
@@ -29,7 +29,7 @@
                   : "memory");                           \
 })
 
-#define csr_read_clear(csr, val)                                \
+#define _csr_read_clear(csr, val)                               \
 ({                                                              \
     unsigned long __v = (unsigned long)(val);                   \
     __asm__ __volatile__ ("csrrc %0, " __ASM_STR(csr) ", %1"    \
@@ -38,7 +38,7 @@
     __v;                                                        \
 })
 
-#define csr_clear(csr, val)                             \
+#define _csr_clear(csr, val)                            \
 ({                                                      \
     unsigned long __v = (unsigned long)(val);           \
     __asm__ __volatile__ ("csrc " __ASM_STR(csr) ", %0" \
@@ -54,28 +54,28 @@
 
 static inline uint32_t _local_irq_save(void)
 {
-    return csr_read_clear(CSR_STATUS, SR_IE);
+    return _csr_read_clear(CSR_STATUS, SR_IE);
 }
 
 static inline void local_irq_restore(uint32_t flags)
 {
-    csr_set(CSR_STATUS, flags & SR_IE);
+    _csr_set(CSR_STATUS, flags & SR_IE);
 }
 
 static inline void local_irq_enable(void)
 {
-    csr_set(CSR_STATUS, SR_IE);
+    _csr_set(CSR_STATUS, SR_IE);
 }
 
 static inline void local_irq_disable(void)
 {
-    csr_clear(CSR_STATUS, SR_IE);
+    _csr_clear(CSR_STATUS, SR_IE);
 }
 
 
 // gpio wrapper
 
-#define gpio_t  uint32_t
+#define gpio_t uint32_t
 
 
 static inline bool gpio_get_val(gpio_t *gpio)

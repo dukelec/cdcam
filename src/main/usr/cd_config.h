@@ -21,6 +21,7 @@
 //#define CD_VERBOSE
 //#define CD_LIST_DEBUG
 
+#define CD_SMP
 #define CD_LIST_IT
 #define CD_IRQ_SAFE
 

@@ -19,6 +19,7 @@ static const char *TAG = "cdcam";
 static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
 
+static cd_spinlock_t buf_lock = {0};
 static uint8_t *yuv422_buf[3] = {0};
 
 static uint8_t *raw_buf = NULL;
@@ -309,9 +310,9 @@ void app_main(void)
         uint8_t *buf = NULL;
         xQueueReceive(cam_notify_queue, &buf, portMAX_DELAY);
 
-        local_irq_save(flags);
+        cd_irq_save(&buf_lock, flags);
         swap(yuv422_buf[1], yuv422_buf[2]);
-        local_irq_restore(flags);
+        cd_irq_restore(&buf_lock, flags);
         buf = yuv422_buf[2];
 
         srm_config.in.buffer = buf;
@@ -364,8 +365,11 @@ static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans
 
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data)
 {
+    uint32_t flags;
     BaseType_t task_woken = pdFALSE;
+    cd_irq_save(&buf_lock, flags);
     swap(yuv422_buf[0], yuv422_buf[1]);
+    cd_irq_restore(&buf_lock, flags);
     if (xQueueSendFromISR(cam_notify_queue, (void *) yuv422_buf[1], &task_woken) == pdPASS) {
         portYIELD_FROM_ISR(task_woken);
     }

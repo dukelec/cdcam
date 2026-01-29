@@ -118,7 +118,6 @@ static void led_task(void *arg)
 }
 
 
-
 static int multi_output_vprintf(const char *fmt, va_list args) {
     char buf[256];
     int len = vsnprintf(buf, sizeof(buf), fmt, args);
