@@ -115,6 +115,7 @@ int flash_cal_crc(uint32_t src_addr, uint32_t len, uint16_t *crc)
                 char *: "[c]", \
                 int8_t *: "[b]", \
                 uint8_t *: "[B]", \
+                uint32_t *: "[I]", \
                 regr_t: "H,H", \
                 regr_t *: "{H,H}", \
                 default: "-"))
@@ -165,7 +166,9 @@ void csa_list_show(void)
     CSA_SHOW(0, agc, "AGC");
     d_info("\n");
 
-    CSA_SHOW(0, capture, "Write 1 capture single image, write 255 keep capture");
-    CSA_SHOW(0, led_en, "LED enable / disable");
+    CSA_SHOW(0, capture, "1: one-shot, 2: capture-and-wait, 255: continuous");
+    CSA_SHOW(0, led_en, "Enable/disable LED");
+    CSA_SHOW(0, img_len, "Captured img length");
+    CSA_SHOW(0, img_read, "Read offset and length");
     d_info("\n");
 }

@@ -17,7 +17,7 @@
 #include "modbus_crc.h"
 
 #define APP_CONF_ADDR       0x003ff000 // last page
-#define APP_CONF_VER        0x0103
+#define APP_CONF_VER        0x0104
 
 #define FRAME_MAX           500
 
@@ -64,6 +64,10 @@ typedef struct {
     uint8_t         capture;
     uint8_t         _reserved3[9];
     uint8_t         led_en;
+    uint8_t         _reserved4[8];
+    uint32_t        img_len;
+    uint32_t        img_read[2];    // ofs, len
+    uint32_t        img_read_bk[2]; // ofs, len
 
 } csa_t; // config status area
 
@@ -71,6 +75,7 @@ extern csa_t csa;
 extern const csa_t csa_dft;
 extern char cpu_id[25];
 extern uint8_t bus_mac;
+extern cd_spinlock_t p5_lock;
 
 
 int flash_erase(uint32_t addr, uint32_t len);

@@ -325,29 +325,56 @@ void app_main(void)
         static int skip = 0;
         ESP_LOGI(TAG, "size : %d, skip: %d, cap: %d", jpg_size, skip, csa.capture);
         if (skip == 0 && csa.capture) {
-            int max_cnt = (jpg_size + (251 - 1)) / 251;
-            int last_size = jpg_size - (max_cnt - 1) * 251;
-            int cnt = 0;
-            while (true) {
+            uint8_t cnt = 0;
+            csa.img_len = jpg_size;
+            uint8_t *pos = jpg_buf;
+            unsigned len = csa.capture != 2 ? jpg_size : 0;
+            while (csa.capture) {
+                if (csa.capture == 2 && len == 0) {
+                    if (csa.img_read_bk[1] == 0 && csa.img_read[1] != 0) {
+                        cd_irq_save(&p5_lock, flags);
+                        memcpy(csa.img_read_bk, csa.img_read, 8);
+                        memset(csa.img_read, 0, 8);
+                        cd_irq_restore(&p5_lock, flags);
+                    }
+                    if (csa.img_read_bk[0] >= jpg_size)
+                        break;
+                    pos = jpg_buf + csa.img_read_bk[0];
+                    len = min(csa.img_read_bk[1], jpg_size - csa.img_read_bk[0]);
+                    if (len == 0) {
+                        vTaskDelay(0);
+                        continue;
+                    }
+                    cd_irq_save(&p5_lock, flags);
+                    memcpy(csa.img_read_bk, csa.img_read, 8);
+                    memset(csa.img_read, 0, 8);
+                    cd_irq_restore(&p5_lock, flags);
+                }
+
+                uint8_t l = min(251, len);
                 cd_frame_t *frm = cd_list_get(&frame_free_head);
                 if (!frm) {
                     ESP_LOGW(TAG, "no free frame");
                     vTaskDelay(1 / portTICK_PERIOD_MS);
                     continue;
                 }
-                if (cnt == 0)
-                    frm->dat[3] = 0x10;
-                else if (cnt + 1 != max_cnt)
+                if (pos == jpg_buf)
+                    frm->dat[3] = 0x10 | (cnt & 0xf);
+                else if (pos + l < jpg_buf + jpg_size)
                     frm->dat[3] = 0x20 | (cnt & 0xf);
                 else
                     frm->dat[3] = 0x30 | (cnt & 0xf);
-                uint8_t len = cnt + 1 == max_cnt ? last_size : 251;
-                memcpy(frm->dat + 5, jpg_buf + cnt * 251, len);
-                frm->dat[2] = len + 2;
+                memcpy(frm->dat + 5, pos, l);
+                frm->dat[2] = l + 2;
                 sent_cam_frame(frm);
-                if (++cnt == max_cnt)
+                cnt++;
+                pos += l;
+                len -= l;
+                if (pos >= jpg_buf + jpg_size)
                     break;
             }
+            csa.img_len = 0;
+            memset(csa.img_read, 0, 16);
             if (csa.capture != 255)
                 csa.capture = 0;
         }

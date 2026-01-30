@@ -12,6 +12,7 @@ static const char *tag = "comm-ser";
 
 char cpu_id[25] = { 0 };
 static char info_str[100];
+cd_spinlock_t p5_lock = {0};
 
 
 static void send_frame(cd_frame_t *frame, uint8_t p_len)
@@ -101,7 +102,6 @@ static void p8_handler(cd_frame_t *frame)
 // csa manipulation
 static void p5_handler(cd_frame_t *frame)
 {
-    static cd_spinlock_t p5_lock = {0};
     uint32_t flags;
     uint8_t *p_dat = frame->dat + 5;
     uint8_t p_len = frame->dat[2] - 2;
@@ -125,6 +125,10 @@ static void p5_handler(cd_frame_t *frame)
         uint16_t start = clip(offset, 0, sizeof(csa_t));
         uint16_t end = clip(offset + len, 0, sizeof(csa_t));
         cd_irq_save(&p5_lock, flags);
+        if (start == offsetof(csa_t, img_read) && csa.img_read[1]) {
+            memcpy(csa.img_read_bk, csa.img_read, 8);
+            memset(csa.img_read, 0, 8);
+        }
         memcpy(((void *) &csa) + start, src_addr + (start - offset), end - start);
         cd_irq_restore(&p5_lock, flags);
         *p_dat = 0;
