@@ -84,8 +84,8 @@ int flash_cal_crc(uint32_t src_addr, uint32_t len, uint16_t *crc);
 
 extern list_head_t frame_free_head;
 
-void common_service_init(void);
-void common_service_routine(void);
+void comm_service_init(void);
+void comm_service_poll(void);
 
 void cd_main_early(void);
 void cd_main_late(void);

@@ -94,7 +94,7 @@ static void dispatch_task(void *arg)
             ulTaskNotifyTake(pdTRUE, 100 / portTICK_PERIOD_MS);
             continue;
         }
-        common_service_routine();
+        comm_service_poll();
     }
 }
 
@@ -176,7 +176,7 @@ void cd_main_late(void)
 {
     ESP_LOGI(tag, "start cd_main_late ...\n");
 
-    common_service_init();
+    comm_service_init();
     xTaskCreate(dispatch_task, "dispatch_task", 4096, NULL, 20, &dispatch_task_handle);
     csa_list_show();
     xTaskCreate(led_task, "led_task", 4096, NULL, 1, NULL);

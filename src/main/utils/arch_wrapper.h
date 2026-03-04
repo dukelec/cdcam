@@ -80,25 +80,34 @@ static inline void local_irq_disable(void)
 
 static inline bool gpio_get_val(gpio_t *gpio)
 {
-    return REG_GET_BIT(GPIO_IN_REG, BIT(*gpio));
+    if (*gpio < 32)
+        return REG_GET_BIT(GPIO_IN_REG, BIT(*gpio));
+    else
+        return REG_GET_BIT(GPIO_IN1_REG, BIT(*gpio));
+}
+
+static inline void gpio_set_high(gpio_t *gpio)
+{
+    if (*gpio < 32)
+        REG_WRITE(GPIO_OUT_W1TS_REG, BIT(*gpio));
+    else
+        REG_WRITE(GPIO_OUT1_W1TS_REG, BIT(*gpio));
+}
+
+static inline void gpio_set_low(gpio_t *gpio)
+{
+    if (*gpio < 32)
+        REG_WRITE(GPIO_OUT_W1TC_REG, BIT(*gpio));
+    else
+        REG_WRITE(GPIO_OUT1_W1TC_REG, BIT(*gpio));
 }
 
 static inline void gpio_set_val(gpio_t *gpio, bool value)
 {
     if (value)
-        REG_WRITE(GPIO_OUT_W1TS_REG, BIT(*gpio));
+        gpio_set_high(gpio);
     else
-        REG_WRITE(GPIO_OUT_W1TC_REG, BIT(*gpio));
-}
-
-static inline void gpio_set_high(gpio_t *gpio)
-{
-    REG_WRITE(GPIO_OUT_W1TS_REG, BIT(*gpio));
-}
-
-static inline void gpio_set_low(gpio_t *gpio)
-{
-    REG_WRITE(GPIO_OUT_W1TC_REG, BIT(*gpio));
+        gpio_set_low(gpio);
 }
 
 
