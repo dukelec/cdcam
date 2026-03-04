@@ -45,8 +45,8 @@ typedef struct {
 
 #define CDCTL_CFG_DFT(_mac) {   \
     .mac = _mac,                \
-    .baud_l = 115200,           \
-    .baud_h = 115200,           \
+    .baud_l = 2000000,          \
+    .baud_h = 20000000,         \
     .filter_m = { 0xff, 0xff }, \
     .mode = 1,                  \
     .tx_permit_len = 0x14,      \

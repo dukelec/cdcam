@@ -45,6 +45,10 @@
 #include "esp_cam_sensor_detect.h"
 
 
+#define LED0_PIN        41
+#define LED1_PIN        20
+#define LED2_PIN        28
+
 #define LED_W_PIN       15
 #define LED_G_PIN       14
 #define MCO_PIN         6

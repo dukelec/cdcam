@@ -15,8 +15,8 @@
 const csa_t csa_dft = {
         .magic_code = 0xcdcd,
         .conf_ver = APP_CONF_VER,
-        .bus_cfg = CDCTL_CFG_DFT(0xfe),
-        .cam_dst = { .addr = {0x00, 0x00, 0x00}, .port = 0x10 },
+        .bus_cfg = CDCTL_CFG_DFT(0x30),
+        .cam_dst = { .addr = {0x00, 0x00, 0x20}, .port = 0x10 },
         .width = 800,
         .height = 800,
         .skip = 0,

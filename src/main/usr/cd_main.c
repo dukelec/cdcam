@@ -10,6 +10,9 @@
 #include "cd_main.h"
 static const char *tag = "cd-main";
 
+static gpio_t led0_pin = LED0_PIN;
+static gpio_t led1_pin = LED1_PIN;
+static gpio_t led2_pin = LED2_PIN;
 static gpio_t led_w_pin = LED_W_PIN;
 static gpio_t led_g_pin = LED_G_PIN;
 static gpio_t mco_pin = MCO_PIN;
@@ -109,6 +112,19 @@ static void led_task(void *arg)
     uint32_t t_last = get_systick();
     led_set_g(120);
     led_set_w(10);
+    
+    gpio_set_val(&led0_pin, 0);
+    gpio_set_val(&led1_pin, 0);
+    gpio_set_val(&led2_pin, 0);
+    gpio_config_t io_led_pin = {
+        .pin_bit_mask = (1ULL << led0_pin),
+        .mode = GPIO_MODE_OUTPUT
+    };
+    gpio_config(&io_led_pin);
+    io_led_pin.pin_bit_mask = 1ULL << led1_pin;
+    gpio_config(&io_led_pin);
+    io_led_pin.pin_bit_mask = 1ULL << led2_pin;
+    gpio_config(&io_led_pin);
 
     while (true) {
         vTaskDelay(50 / portTICK_PERIOD_MS);
@@ -121,6 +137,9 @@ static void led_task(void *arg)
 
             ESP_LOGI(tag, "free heap: %ld", esp_get_free_heap_size());
         }
+        gpio_set_val(&led0_pin, csa.led_en & 1);
+        gpio_set_val(&led1_pin, csa.led_en & 2);
+        gpio_set_val(&led2_pin, csa.led_en & 4);
     }
 }
 
