@@ -181,3 +181,13 @@ void cd_main_late(void)
     csa_list_show();
     xTaskCreate(led_task, "led_task", 4096, NULL, 1, NULL);
 }
+
+
+void cdctl_rx_cb(cd_frame_t *frame)
+{
+    if (dispatch_task_handle) {
+        BaseType_t task_woken = pdFALSE;
+        vTaskNotifyGiveFromISR(dispatch_task_handle, &task_woken);
+        portYIELD_FROM_ISR(task_woken);
+    }
+}

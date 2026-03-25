@@ -22,7 +22,7 @@ list_head_t cdctl_tx_head = {0};
 static uint32_t sysclk;
 static cd_frame_t *rx_frame = NULL;
 static cd_frame_t *tx_frame = NULL;
-static bool tx_wait_trigger = false;
+static cd_frame_t *tx_wait_trigger = NULL;
 static bool tx_buf_clean_mask = false;
 
 volatile uint32_t cdctl_rx_cnt = 0;
@@ -38,7 +38,6 @@ volatile uint32_t cdctl_rx_len_err_cnt = 0;
 
 void cdctl_put_tx_frame(cd_frame_t *frame)
 {
-    cdctl_tx_cnt++;
     cd_list_put(&cdctl_tx_head, frame);
 retry:
     CD_IRQ_DISABLE();
@@ -187,9 +186,10 @@ void cdctl_spi_isr(void)
         // check for tx
         if (tx_wait_trigger) {
             if (val & BIT_FLAG_TX_BUF_CLEAN) {
-                tx_wait_trigger = false;
                 cdctl_state = CDCTL_REG_W;
                 cdctl_reg_w_it(REG_TX_CTRL, BIT_TX_START | BIT_TX_RST_POINTER);
+                cdctl_tx_cb(tx_wait_trigger);
+                tx_wait_trigger = NULL;
                 return;
             } else if (!tx_buf_clean_mask) {
                 // enable tx_buf_clean irq
@@ -246,20 +246,16 @@ void cdctl_spi_isr(void)
     // end of CDCTL_RX_BODY
     if (cdctl_state == CDCTL_RX_BODY) {
         CD_SS_HIGH();
+        cdctl_state = CDCTL_REG_W;
+        cdctl_reg_w_it(REG_RX_CTRL, BIT_RX_CLR_PENDING | BIT_RX_RST_POINTER);
         cd_frame_t *frame = cd_list_get(&frame_free_head);
         if (frame) {
             cd_list_put(&cdctl_rx_head, rx_frame);
-            rx_frame = frame;
             cdctl_rx_cnt++;
+            cdctl_rx_cb(rx_frame);
+            rx_frame = frame;
         } else {
             cdctl_rx_no_free_node_cnt++;
-        }
-        cdctl_state = CDCTL_REG_W;
-        cdctl_reg_w_it(REG_RX_CTRL, BIT_RX_CLR_PENDING | BIT_RX_RST_POINTER);
-        if (dispatch_task_handle) {
-            BaseType_t task_woken = pdFALSE;
-            vTaskNotifyGiveFromISR(dispatch_task_handle, &task_woken);
-            portYIELD_FROM_ISR(task_woken);
         }
         return;
     }
@@ -267,9 +263,12 @@ void cdctl_spi_isr(void)
     // end of CDCTL_TX_FRAME
     if (cdctl_state == CDCTL_TX_FRAME) {
         CD_SS_HIGH();
+#ifndef CDCTL_TX_NOT_FREE
         cd_list_put(&frame_free_head, tx_frame);
+#endif
+        tx_wait_trigger = tx_frame;
         tx_frame = NULL;
-        tx_wait_trigger = true;
+        cdctl_tx_cnt++;
 
         cdctl_state = CDCTL_RD_FLAG;
         cdctl_reg_r_it(REG_INT_FLAG);
@@ -278,3 +277,8 @@ void cdctl_spi_isr(void)
 
     esp_rom_printf("cdctl: unexpected spi dma cb\n"); // d_warn
 }
+
+
+__weak void cdctl_rx_cb(cd_frame_t *frame) {}
+__weak void cdctl_tx_cb(cd_frame_t *frame) {}
+
