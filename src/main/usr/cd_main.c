@@ -89,7 +89,6 @@ static void led_set_g(uint8_t duty_g)
 
 static void dispatch_task(void *arg)
 {
-    static const int8_t qval = 0;
     while (true) {
         if (!cdctl_rx_head.first) {
             ulTaskNotifyTake(pdTRUE, 100 / portTICK_PERIOD_MS);
@@ -97,7 +96,7 @@ static void dispatch_task(void *arg)
         }
         comm_service_poll();
         if (csa.capture)
-            xQueueSend(cam_notify_queue, &qval, 0);
+            xTaskNotifyGive(rpt_task_handle);
     }
 }
 
@@ -116,6 +115,8 @@ static void led_task(void *arg)
                 cdctl_state, cdctl_tx_head.len, cdctl_rx_head.len, !CD_INT_RD(),
                 cdctl_rx_cnt, cdctl_rx_lost_cnt, cdctl_rx_error_cnt, cdctl_rx_no_free_node_cnt,
                 cdctl_tx_cnt, cdctl_tx_cd_cnt, cdctl_tx_error_cnt);
+
+            ESP_LOGI(tag, "free heap: %ld", esp_get_free_heap_size());
         }
     }
 }

@@ -113,7 +113,7 @@ static inline void gpio_set_val(gpio_t *gpio, bool value)
 
 static inline uint32_t get_systick(void)
 {
-    return esp_log_early_timestamp();
+    return esp_log_timestamp();
 }
 
 static inline void delay_ms(uint32_t val)

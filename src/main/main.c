@@ -20,12 +20,15 @@ static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
 
 static cd_spinlock_t buf_lock = {0};
+static cd_spinlock_t rpt_lock = {0};
 static uint8_t *yuv422_buf[3] = {0};
 
 static uint8_t *raw_buf = NULL;
-static uint8_t *jpg_buf = NULL;
+static uint8_t *jpg_buf[3] = {0};
+static uint32_t jpg_size[3] = {0};
 
-QueueHandle_t cam_notify_queue = NULL;
+TaskHandle_t rpt_task_handle = NULL;
+static QueueHandle_t cam_notify_queue = NULL;
 static esp_cam_sensor_device_t *cam_dev = NULL;
 
 
@@ -96,6 +99,90 @@ static void common_task(void *arg)
 }
 
 
+static void report_task(void *arg)
+{
+    uint32_t flags;
+    int skip = 0;
+
+    while (true) {
+        if (!csa.capture && jpg_size[1] == 0) {
+            ulTaskNotifyTake(pdTRUE, 10 / portTICK_PERIOD_MS);
+            continue;
+        }
+
+        cd_irq_save(&rpt_lock, flags);
+        if (jpg_size[1] != 0) {
+            swap(jpg_buf[1], jpg_buf[2]);
+            jpg_size[2] = jpg_size[1];
+            jpg_size[1] = 0;
+        }
+        cd_irq_restore(&rpt_lock, flags);
+
+        if (!csa.capture || jpg_size[2] == 0)
+            continue;
+        memset(csa.img_read, 0, 16);
+        csa.img_len = jpg_size[2];
+        ESP_LOGI(TAG, "size : %d, skip: %d, cap: %d", jpg_size[2], skip, csa.capture);
+
+        if (skip == 0) {
+            csa.hdr_cnt = 0;
+            uint8_t *pos = jpg_buf[2];
+            unsigned len = csa.capture != 2 ? jpg_size[2] : 0;
+            while (csa.capture) {
+                if (csa.capture == 2 && len == 0) {
+                    if (csa.img_read_bk[1] == 0 && csa.img_read[1] != 0) {
+                        cd_irq_save(&p5_lock, flags);
+                        memcpy(csa.img_read_bk, csa.img_read, 8);
+                        memset(csa.img_read, 0, 8);
+                        cd_irq_restore(&p5_lock, flags);
+                    }
+                    if (csa.img_read_bk[0] >= jpg_size[2]) // end of capture = 2
+                        break;
+                    pos = jpg_buf[2] + csa.img_read_bk[0];
+                    len = min(csa.img_read_bk[1], jpg_size[2] - csa.img_read_bk[0]);
+                    if (len == 0) {
+                        vTaskDelay(0);
+                        continue;
+                    }
+                    cd_irq_save(&p5_lock, flags);
+                    memcpy(csa.img_read_bk, csa.img_read, 8);
+                    memset(csa.img_read, 0, 8);
+                    cd_irq_restore(&p5_lock, flags);
+                }
+
+                uint8_t l = min(251, len);
+                cd_frame_t *frm = cd_list_get(&frame_free_head);
+                if (!frm) {
+                    ESP_LOGW(TAG, "no free frame");
+                    vTaskDelay(1 / portTICK_PERIOD_MS);
+                    continue;
+                }
+                if (pos == jpg_buf[2])
+                    frm->dat[3] = 0x10 | (csa.hdr_cnt & 0xf);
+                else if (pos + l < jpg_buf[2] + jpg_size[2])
+                    frm->dat[3] = 0x20 | (csa.hdr_cnt & 0xf);
+                else
+                    frm->dat[3] = 0x30 | (csa.hdr_cnt & 0xf);
+                memcpy(frm->dat + 5, pos, l);
+                frm->dat[2] = l + 2;
+                sent_cam_frame(frm);
+                csa.hdr_cnt++;
+                pos += l;
+                len -= l;
+                if (csa.capture != 2 && pos >= jpg_buf[2] + jpg_size[2])
+                    break;
+            }
+            memset(csa.img_read, 0, 16);
+            if (csa.capture != 255)
+                csa.capture = 0;
+        }
+        csa.img_len = jpg_size[2] = 0;
+        if (skip++ >= csa.skip || csa.capture == 0)
+            skip = 0;
+    }
+}
+
+
 static uint32_t s_gamma_curve(uint32_t x)
 {
     return powf((float)x / 256, 0.7) * 256;
@@ -133,10 +220,12 @@ void app_main(void)
 
     size_t rx_buffer_size = 0;
     // assume that compression ratio of 10 to 1
-    jpg_buf = (uint8_t*)jpeg_alloc_encoder_mem(IMG_WIDTH * IMG_HEIGHT / 2, &rx_mem_cfg, &rx_buffer_size);
-    if (jpg_buf == NULL) {
-        ESP_LOGE(TAG, "alloc jpg_buf error");
-        return;
+    for (int i = 0; i < 3; i++) {
+        jpg_buf[i] = (uint8_t*)jpeg_alloc_encoder_mem(IMG_WIDTH * IMG_HEIGHT / 2, &rx_mem_cfg, &rx_buffer_size);
+        if (jpg_buf[i] == NULL) {
+            ESP_LOGE(TAG, "alloc jpg_buf error");
+            return;
+        }
     }
 
     jpeg_encode_cfg_t enc_config = {
@@ -205,6 +294,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_isp_enable(isp_proc));
 
     cam_notify_queue = xQueueCreate(2, sizeof(int8_t));
+
     for (int i = 0; i < 3; i++) {
         yuv422_buf[i] = aligned_alloc(0x40, IMG_YUV422_SIZE);
         if (!yuv422_buf[i]) {
@@ -220,6 +310,7 @@ void app_main(void)
     }
 
     xTaskCreate(common_task, "common_task", 4096, NULL, 5, NULL);
+    xTaskCreate(report_task, "report_task", 4096, NULL, 10, &rpt_task_handle);
 
 
 #if 0
@@ -304,86 +395,27 @@ void app_main(void)
         .mode = PPA_TRANS_MODE_BLOCKING,
     };
 
-
-    uint32_t jpg_size = 0;
-
     while (true) {
         uint32_t flags;
-        int8_t qval = -1;
+        int8_t qval = 0;
         xQueueReceive(cam_notify_queue, &qval, portMAX_DELAY);
 
-        if (qval == 1) {
-            cd_irq_save(&buf_lock, flags);
-            swap(yuv422_buf[1], yuv422_buf[2]);
-            cd_irq_restore(&buf_lock, flags);
+        cd_irq_save(&buf_lock, flags);
+        swap(yuv422_buf[1], yuv422_buf[2]);
+        cd_irq_restore(&buf_lock, flags);
 
-            srm_config.in.buffer = yuv422_buf[2];
-            ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
+        srm_config.in.buffer = yuv422_buf[2];
+        ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
 
-            ESP_ERROR_CHECK(jpeg_encoder_process(jpeg_handle, &enc_config, yuv422_buf_sm, IMG_WIDTH * IMG_HEIGHT * 2 / 4,
-                                                 jpg_buf, IMG_WIDTH * IMG_HEIGHT / 2, &jpg_size));
-            csa.img_len = jpg_size;
-        } else if (!jpg_size) {
-            continue;
-        }
+        ESP_ERROR_CHECK(jpeg_encoder_process(jpeg_handle, &enc_config, yuv422_buf_sm, IMG_WIDTH * IMG_HEIGHT * 2 / 4,
+                                             jpg_buf[0], IMG_WIDTH * IMG_HEIGHT / 2, &jpg_size[0]));
 
-        static int skip = 0;
-        ESP_LOGI(TAG, "size : %d, skip: %d, cap: %d", jpg_size, skip, csa.capture);
-        if (skip == 0 && csa.capture) {
-            csa.hdr_cnt = 0;
-            uint8_t *pos = jpg_buf;
-            unsigned len = csa.capture != 2 ? jpg_size : 0;
-            while (csa.capture) {
-                if (csa.capture == 2 && len == 0) {
-                    if (csa.img_read_bk[1] == 0 && csa.img_read[1] != 0) {
-                        cd_irq_save(&p5_lock, flags);
-                        memcpy(csa.img_read_bk, csa.img_read, 8);
-                        memset(csa.img_read, 0, 8);
-                        cd_irq_restore(&p5_lock, flags);
-                    }
-                    if (csa.img_read_bk[0] >= jpg_size)
-                        break;
-                    pos = jpg_buf + csa.img_read_bk[0];
-                    len = min(csa.img_read_bk[1], jpg_size - csa.img_read_bk[0]);
-                    if (len == 0) {
-                        vTaskDelay(0);
-                        continue;
-                    }
-                    cd_irq_save(&p5_lock, flags);
-                    memcpy(csa.img_read_bk, csa.img_read, 8);
-                    memset(csa.img_read, 0, 8);
-                    cd_irq_restore(&p5_lock, flags);
-                }
-
-                uint8_t l = min(251, len);
-                cd_frame_t *frm = cd_list_get(&frame_free_head);
-                if (!frm) {
-                    ESP_LOGW(TAG, "no free frame");
-                    vTaskDelay(1 / portTICK_PERIOD_MS);
-                    continue;
-                }
-                if (pos == jpg_buf)
-                    frm->dat[3] = 0x10 | (csa.hdr_cnt & 0xf);
-                else if (pos + l < jpg_buf + jpg_size)
-                    frm->dat[3] = 0x20 | (csa.hdr_cnt & 0xf);
-                else
-                    frm->dat[3] = 0x30 | (csa.hdr_cnt & 0xf);
-                memcpy(frm->dat + 5, pos, l);
-                frm->dat[2] = l + 2;
-                sent_cam_frame(frm);
-                csa.hdr_cnt++;
-                pos += l;
-                len -= l;
-                if (csa.capture != 2 && pos >= jpg_buf + jpg_size)
-                    break;
-            }
-            csa.img_len = jpg_size = 0;
-            memset(csa.img_read, 0, 16);
-            if (csa.capture != 255)
-                csa.capture = 0;
-        }
-        if (skip++ >= csa.skip || csa.capture == 0)
-            skip = 0;
+        cd_irq_save(&rpt_lock, flags);
+        swap(jpg_buf[0], jpg_buf[1]);
+        jpg_size[1] = jpg_size[0];
+        jpg_size[0] = 0;
+        cd_irq_restore(&rpt_lock, flags);
+        xTaskNotifyGive(rpt_task_handle);
     }
 }
 
@@ -396,14 +428,13 @@ static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans
 
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data)
 {
-    static const int8_t qval = 1;
+    static const int8_t qval = 0;
     uint32_t flags;
     BaseType_t task_woken = pdFALSE;
     cd_irq_save(&buf_lock, flags);
     swap(yuv422_buf[0], yuv422_buf[1]);
     cd_irq_restore(&buf_lock, flags);
-    if (xQueueSendFromISR(cam_notify_queue, &qval, &task_woken) == pdPASS) {
+    if (xQueueSendFromISR(cam_notify_queue, &qval, &task_woken) == pdPASS)
         portYIELD_FROM_ISR(task_woken);
-    }
     return false;
 }
