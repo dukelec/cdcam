@@ -64,7 +64,8 @@ typedef struct {
     uint8_t         capture;
     uint8_t         _reserved3[9];
     uint8_t         led_en;
-    uint8_t         _reserved4[8];
+    uint8_t         _reserved4[7];
+    uint8_t         hdr_cnt;
     uint32_t        img_len;
     uint32_t        img_read[2];    // ofs, len
     uint32_t        img_read_bk[2]; // ofs, len

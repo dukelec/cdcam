@@ -25,7 +25,7 @@ static uint8_t *yuv422_buf[3] = {0};
 static uint8_t *raw_buf = NULL;
 static uint8_t *jpg_buf = NULL;
 
-static QueueHandle_t cam_notify_queue = NULL;
+QueueHandle_t cam_notify_queue = NULL;
 static esp_cam_sensor_device_t *cam_dev = NULL;
 
 
@@ -204,7 +204,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_isp_new_processor(&isp_config, &isp_proc));
     ESP_ERROR_CHECK(esp_isp_enable(isp_proc));
 
-    cam_notify_queue = xQueueCreate(2, sizeof(void *));
+    cam_notify_queue = xQueueCreate(2, sizeof(int8_t));
     for (int i = 0; i < 3; i++) {
         yuv422_buf[i] = aligned_alloc(0x40, IMG_YUV422_SIZE);
         if (!yuv422_buf[i]) {
@@ -305,28 +305,32 @@ void app_main(void)
     };
 
 
+    uint32_t jpg_size = 0;
+
     while (true) {
         uint32_t flags;
-        uint8_t *buf = NULL;
-        xQueueReceive(cam_notify_queue, &buf, portMAX_DELAY);
+        int8_t qval = -1;
+        xQueueReceive(cam_notify_queue, &qval, portMAX_DELAY);
 
-        cd_irq_save(&buf_lock, flags);
-        swap(yuv422_buf[1], yuv422_buf[2]);
-        cd_irq_restore(&buf_lock, flags);
-        buf = yuv422_buf[2];
+        if (qval == 1) {
+            cd_irq_save(&buf_lock, flags);
+            swap(yuv422_buf[1], yuv422_buf[2]);
+            cd_irq_restore(&buf_lock, flags);
 
-        srm_config.in.buffer = buf;
-        ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
+            srm_config.in.buffer = yuv422_buf[2];
+            ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
 
-        uint32_t jpg_size = 0;
-        ESP_ERROR_CHECK(jpeg_encoder_process(jpeg_handle, &enc_config, yuv422_buf_sm, IMG_WIDTH * IMG_HEIGHT * 2 / 4,
-                                             jpg_buf, IMG_WIDTH * IMG_HEIGHT / 2, &jpg_size));
+            ESP_ERROR_CHECK(jpeg_encoder_process(jpeg_handle, &enc_config, yuv422_buf_sm, IMG_WIDTH * IMG_HEIGHT * 2 / 4,
+                                                 jpg_buf, IMG_WIDTH * IMG_HEIGHT / 2, &jpg_size));
+            csa.img_len = jpg_size;
+        } else if (!jpg_size) {
+            continue;
+        }
 
         static int skip = 0;
         ESP_LOGI(TAG, "size : %d, skip: %d, cap: %d", jpg_size, skip, csa.capture);
         if (skip == 0 && csa.capture) {
-            uint8_t cnt = 0;
-            csa.img_len = jpg_size;
+            csa.hdr_cnt = 0;
             uint8_t *pos = jpg_buf;
             unsigned len = csa.capture != 2 ? jpg_size : 0;
             while (csa.capture) {
@@ -359,21 +363,21 @@ void app_main(void)
                     continue;
                 }
                 if (pos == jpg_buf)
-                    frm->dat[3] = 0x10 | (cnt & 0xf);
+                    frm->dat[3] = 0x10 | (csa.hdr_cnt & 0xf);
                 else if (pos + l < jpg_buf + jpg_size)
-                    frm->dat[3] = 0x20 | (cnt & 0xf);
+                    frm->dat[3] = 0x20 | (csa.hdr_cnt & 0xf);
                 else
-                    frm->dat[3] = 0x30 | (cnt & 0xf);
+                    frm->dat[3] = 0x30 | (csa.hdr_cnt & 0xf);
                 memcpy(frm->dat + 5, pos, l);
                 frm->dat[2] = l + 2;
                 sent_cam_frame(frm);
-                cnt++;
+                csa.hdr_cnt++;
                 pos += l;
                 len -= l;
-                if (pos >= jpg_buf + jpg_size)
+                if (csa.capture != 2 && pos >= jpg_buf + jpg_size)
                     break;
             }
-            csa.img_len = 0;
+            csa.img_len = jpg_size = 0;
             memset(csa.img_read, 0, 16);
             if (csa.capture != 255)
                 csa.capture = 0;
@@ -392,12 +396,13 @@ static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans
 
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data)
 {
+    static const int8_t qval = 1;
     uint32_t flags;
     BaseType_t task_woken = pdFALSE;
     cd_irq_save(&buf_lock, flags);
     swap(yuv422_buf[0], yuv422_buf[1]);
     cd_irq_restore(&buf_lock, flags);
-    if (xQueueSendFromISR(cam_notify_queue, (void *) yuv422_buf[1], &task_woken) == pdPASS) {
+    if (xQueueSendFromISR(cam_notify_queue, &qval, &task_woken) == pdPASS) {
         portYIELD_FROM_ISR(task_woken);
     }
     return false;

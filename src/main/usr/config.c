@@ -168,6 +168,7 @@ void csa_list_show(void)
 
     CSA_SHOW(0, capture, "1: one-shot, 2: capture-and-wait, 255: continuous");
     CSA_SHOW(0, led_en, "Enable/disable LED");
+    CSA_SHOW(0, hdr_cnt, "Img header cnt");
     CSA_SHOW(0, img_len, "Captured img length");
     CSA_SHOW(0, img_read, "Read offset and length");
     d_info("\n");

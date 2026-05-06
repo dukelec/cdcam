@@ -68,6 +68,7 @@
 
 
 extern TaskHandle_t dispatch_task_handle;
+extern QueueHandle_t cam_notify_queue;
 
 void cdcam_sensor_init(int i2c_port, esp_cam_sensor_device_t **out_cam_dev);
 

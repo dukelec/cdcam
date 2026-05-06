@@ -89,12 +89,15 @@ static void led_set_g(uint8_t duty_g)
 
 static void dispatch_task(void *arg)
 {
+    static const int8_t qval = 0;
     while (true) {
         if (!cdctl_rx_head.first) {
             ulTaskNotifyTake(pdTRUE, 100 / portTICK_PERIOD_MS);
             continue;
         }
         comm_service_poll();
+        if (csa.capture)
+            xQueueSend(cam_notify_queue, &qval, 0);
     }
 }
 
