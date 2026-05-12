@@ -1,8 +1,8 @@
 diff --git a/components/esp_driver_spi/src/gpspi/spi_master.c b/components/esp_driver_spi/src/gpspi/spi_master.c
-index f78a8dff42..bae0e98b4d 100644
+index 0508d006b6..7b8699a424 100644
 --- a/components/esp_driver_spi/src/gpspi/spi_master.c
 +++ b/components/esp_driver_spi/src/gpspi/spi_master.c
-@@ -239,6 +239,7 @@ struct spi_device_t {
+@@ -257,6 +257,7 @@ struct spi_device_t {
  
  static spi_host_t* bus_driver_ctx[SOC_SPI_PERIPH_NUM] = {};
  
@@ -10,21 +10,23 @@ index f78a8dff42..bae0e98b4d 100644
  static void spi_intr(void *arg);
  static void spi_bus_intr_enable(void *host);
  static void spi_bus_intr_disable(void *host);
-@@ -975,6 +976,7 @@ static void SPI_MASTER_ISR_ATTR spi_intr(void *arg)
-                 // invalidate priv_trans.buffer_to_rcv anyway, only user provide aligned buffer can rcv correct data in post_cb
-                 esp_err_t ret = esp_cache_msync((void *)host->cur_trans_buf.buffer_to_rcv, buffer_byte_len, ESP_CACHE_MSYNC_FLAG_DIR_M2C);
-                 assert(ret == ESP_OK);
-+                uninstall_priv_desc(&host->cur_trans_buf); // modified by duke
-                 (void)ret;
-             }
- #endif
-@@ -1263,7 +1265,12 @@ esp_err_t SPI_MASTER_ATTR spi_device_queue_trans(spi_device_handle_t handle, spi
+@@ -1006,6 +1007,10 @@ static void SPI_MASTER_ISR_ATTR spi_intr(void *arg)
+ #endif  //#if CONFIG_IDF_TARGET_ESP32
+             spicommon_dma_rx_mb(host->id, host->cur_trans_buf.buffer_to_rcv);
+             spi_trans_dma_error_check(host);
++#if SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE
++            // patch: for targets requiring priv_buffer for DMA (e.g. esp32p4)
++            uninstall_priv_desc(&host->cur_trans_buf);
++#endif
+         }
+ 
+ #if SOC_SPI_SCT_SUPPORTED
+@@ -1245,7 +1250,11 @@ esp_err_t SPI_MASTER_ATTR spi_device_queue_trans(spi_device_handle_t handle, spi
  #endif
      //Send to queue and invoke the ISR.
  
 -    BaseType_t r = xQueueSend(handle->trans_queue, (void *)&trans_buf, ticks_to_wait);
-+    // duke: https://github.com/espressif/esp-idf/issues/12855
-+    //BaseType_t r = xQueueSend(handle->trans_queue, (void *)&trans_buf, ticks_to_wait);
++    // patch: https://github.com/espressif/esp-idf/issues/12855
 +    BaseType_t task_woken = pdFALSE;
 +    BaseType_t r = xQueueSendFromISR(handle->trans_queue, (void *)&trans_buf, &task_woken);
 +    portYIELD_FROM_ISR(task_woken);

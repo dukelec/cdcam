@@ -106,6 +106,7 @@ static void report_task(void *arg)
     int skip = 0;
 
     while (true) {
+        cd_irq_save(&p5_lock, flags);
         if (csa.capture_ctrl == 0x80)
             csa.capture_state = 0;
         else if (csa.capture_ctrl != 0)
@@ -113,6 +114,7 @@ static void report_task(void *arg)
         if (csa.capture_ctrl == 8)
             jpg_size[2] = 0;
         csa.capture_ctrl = 0;
+        cd_irq_restore(&p5_lock, flags);
 
         if (!csa.capture_state && jpg_size[1] == 0) {
             ulTaskNotifyTake(pdTRUE, 10 / portTICK_PERIOD_MS);
@@ -132,8 +134,8 @@ static void report_task(void *arg)
             continue;
         }
 
-        csa.img_len = jpg_size[2];
         memset(csa.img_read, 0, 16);
+        csa.img_len = jpg_size[2];
 
         ESP_LOGI(TAG, "size : %d, skip: %d, st: %x", jpg_size[2], skip, csa.capture_state);
 
@@ -143,21 +145,22 @@ static void report_task(void *arg)
             unsigned len = csa.capture_state != 2 ? jpg_size[2] : 0;
             while (csa.capture_ctrl != 0x80) {
                 if (csa.capture_state == 2 && len == 0) {
+                    cd_irq_save(&p5_lock, flags);
                     if (csa.img_read_bk[1] == 0 && csa.img_read[1] != 0) {
-                        cd_irq_save(&p5_lock, flags);
                         memcpy(csa.img_read_bk, csa.img_read, 8);
                         memset(csa.img_read, 0, 8);
-                        cd_irq_restore(&p5_lock, flags);
                     }
-                    if (csa.img_read_bk[0] >= jpg_size[2])
+                    if (csa.img_read_bk[0] >= jpg_size[2]) {
+                        cd_irq_restore(&p5_lock, flags);
                         break;
+                    }
                     pos = jpg_buf[2] + csa.img_read_bk[0];
                     len = min(csa.img_read_bk[1], jpg_size[2] - csa.img_read_bk[0]);
                     if (len == 0) {
-                        vTaskDelay(0);
+                        cd_irq_restore(&p5_lock, flags);
+                        ulTaskNotifyTake(pdTRUE, 10 / portTICK_PERIOD_MS);
                         continue;
                     }
-                    cd_irq_save(&p5_lock, flags);
                     memcpy(csa.img_read_bk, csa.img_read, 8);
                     memset(csa.img_read, 0, 8);
                     cd_irq_restore(&p5_lock, flags);
@@ -167,7 +170,7 @@ static void report_task(void *arg)
                 cd_frame_t *frm = cd_list_get(&frame_free_head);
                 if (!frm) {
                     ESP_LOGW(TAG, "no free frame");
-                    vTaskDelay(1 / portTICK_PERIOD_MS);
+                    vTaskDelay(1);
                     continue;
                 }
                 if (pos == jpg_buf[2])
@@ -325,7 +328,7 @@ void app_main(void)
         .v_res = IMG_HEIGHT,
         .lane_bit_rate_mbps = CDCAM_MIPI_CSI_LANE_BITRATE_MBPS,
         .input_data_color_type = CAM_CTLR_COLOR_RAW8,
-        .output_data_color_type = CAM_CTLR_COLOR_RGB565,
+        .output_data_color_type = CAM_CTLR_COLOR_RAW8,
         .data_lane_num = 2,
         .byte_swap_en = false,
         .queue_items = 1,
