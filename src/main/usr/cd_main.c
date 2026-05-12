@@ -95,8 +95,11 @@ static void dispatch_task(void *arg)
             continue;
         }
         comm_service_poll();
-        if (csa.capture)
+        if (csa.capture_ctrl) {
             xTaskNotifyGive(rpt_task_handle);
+            while (csa.capture_ctrl)
+                vTaskDelay(0);
+        }
     }
 }
 

@@ -59,10 +59,11 @@ typedef struct {
     uint8_t         _reserved2[24];
 
     // end of flash
-    #define         _end_save capture
+    #define         _end_save capture_ctrl
 
-    uint8_t         capture;
-    uint8_t         _reserved3[9];
+    uint8_t         capture_ctrl;
+    uint8_t         capture_state;
+    uint8_t         _reserved3[8];
     uint8_t         led_en;
     uint8_t         _reserved4[7];
     uint8_t         hdr_cnt;

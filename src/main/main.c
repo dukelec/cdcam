@@ -16,6 +16,7 @@ static const char *TAG = "cdcam";
 #define IMG_HEIGHT      1600
 #define IMG_YUV422_SIZE (IMG_WIDTH * IMG_HEIGHT * 2)
 
+static jpeg_encoder_handle_t jpeg_handle;
 static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
 
@@ -28,7 +29,7 @@ static uint8_t *jpg_buf[3] = {0};
 static uint32_t jpg_size[3] = {0};
 
 TaskHandle_t rpt_task_handle = NULL;
-static QueueHandle_t cam_notify_queue = NULL;
+static TaskHandle_t enc_task_handle = NULL;
 static esp_cam_sensor_device_t *cam_dev = NULL;
 
 
@@ -105,7 +106,15 @@ static void report_task(void *arg)
     int skip = 0;
 
     while (true) {
-        if (!csa.capture && jpg_size[1] == 0) {
+        if (csa.capture_ctrl == 0x80)
+            csa.capture_state = 0;
+        else if (csa.capture_ctrl != 0)
+            csa.capture_state = csa.capture_ctrl;
+        if (csa.capture_ctrl == 8)
+            jpg_size[2] = 0;
+        csa.capture_ctrl = 0;
+
+        if (!csa.capture_state && jpg_size[1] == 0) {
             ulTaskNotifyTake(pdTRUE, 10 / portTICK_PERIOD_MS);
             continue;
         }
@@ -118,25 +127,29 @@ static void report_task(void *arg)
         }
         cd_irq_restore(&rpt_lock, flags);
 
-        if (!csa.capture || jpg_size[2] == 0)
+        if (!csa.capture_state || jpg_size[2] == 0) {
+            ulTaskNotifyTake(pdTRUE, 10 / portTICK_PERIOD_MS);
             continue;
-        memset(csa.img_read, 0, 16);
+        }
+
         csa.img_len = jpg_size[2];
-        ESP_LOGI(TAG, "size : %d, skip: %d, cap: %d", jpg_size[2], skip, csa.capture);
+        memset(csa.img_read, 0, 16);
+
+        ESP_LOGI(TAG, "size : %d, skip: %d, st: %x", jpg_size[2], skip, csa.capture_state);
 
         if (skip == 0) {
             csa.hdr_cnt = 0;
             uint8_t *pos = jpg_buf[2];
-            unsigned len = csa.capture != 2 ? jpg_size[2] : 0;
-            while (csa.capture) {
-                if (csa.capture == 2 && len == 0) {
+            unsigned len = csa.capture_state != 2 ? jpg_size[2] : 0;
+            while (csa.capture_ctrl != 0x80) {
+                if (csa.capture_state == 2 && len == 0) {
                     if (csa.img_read_bk[1] == 0 && csa.img_read[1] != 0) {
                         cd_irq_save(&p5_lock, flags);
                         memcpy(csa.img_read_bk, csa.img_read, 8);
                         memset(csa.img_read, 0, 8);
                         cd_irq_restore(&p5_lock, flags);
                     }
-                    if (csa.img_read_bk[0] >= jpg_size[2]) // end of capture = 2
+                    if (csa.img_read_bk[0] >= jpg_size[2])
                         break;
                     pos = jpg_buf[2] + csa.img_read_bk[0];
                     len = min(csa.img_read_bk[1], jpg_size[2] - csa.img_read_bk[0]);
@@ -169,16 +182,83 @@ static void report_task(void *arg)
                 csa.hdr_cnt++;
                 pos += l;
                 len -= l;
-                if (csa.capture != 2 && pos >= jpg_buf[2] + jpg_size[2])
+                if (csa.capture_state != 2 && pos >= jpg_buf[2] + jpg_size[2])
                     break;
             }
-            memset(csa.img_read, 0, 16);
-            if (csa.capture != 255)
-                csa.capture = 0;
         }
+
+        if (csa.capture_state != 8)
+            csa.capture_state = 0;
         csa.img_len = jpg_size[2] = 0;
-        if (skip++ >= csa.skip || csa.capture == 0)
+        if (skip++ >= csa.skip || csa.capture_state == 0)
             skip = 0;
+    }
+}
+
+
+static void encoder_task(void *arg)
+{
+    jpeg_encode_cfg_t enc_config = {
+        .src_type = JPEG_ENCODE_IN_FORMAT_RGB565,
+        .sub_sample = JPEG_DOWN_SAMPLING_YUV422,
+        .image_quality = 80,
+        .width = IMG_WIDTH / 2,
+        .height = IMG_HEIGHT / 2,
+    };
+
+    ppa_client_handle_t ppa_srm_handle = NULL;
+    ppa_client_config_t ppa_srm_config = {
+        .oper_type = PPA_OPERATION_SRM,
+        .max_pending_trans_num = 1,
+    };
+    ESP_ERROR_CHECK(ppa_register_client(&ppa_srm_config, &ppa_srm_handle));
+
+    uint8_t *yuv422_buf_sm = aligned_alloc(0x40, IMG_YUV422_SIZE / 4);
+
+    ppa_srm_oper_config_t srm_config = {
+        .in.buffer = NULL,
+        .in.pic_w = IMG_WIDTH,
+        .in.pic_h = IMG_HEIGHT,
+        .in.block_w = IMG_WIDTH,
+        .in.block_h = IMG_HEIGHT,
+        .in.block_offset_x = 0,
+        .in.block_offset_y = 0,
+        .in.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
+        .out.buffer = yuv422_buf_sm,
+        .out.buffer_size = IMG_YUV422_SIZE / 4,
+        .out.pic_w = IMG_WIDTH / 2,
+        .out.pic_h = IMG_HEIGHT / 2,
+        .out.block_offset_x = 0,
+        .out.block_offset_y = 0,
+        .out.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
+        .rotation_angle = PPA_SRM_ROTATION_ANGLE_0,
+        .scale_x = 0.5,
+        .scale_y = 0.5,
+        .rgb_swap = 0,
+        .byte_swap = 0,
+        .mode = PPA_TRANS_MODE_BLOCKING,
+    };
+
+    while (true) {
+        uint32_t flags;
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        cd_irq_save(&buf_lock, flags);
+        swap(yuv422_buf[1], yuv422_buf[2]);
+        cd_irq_restore(&buf_lock, flags);
+
+        srm_config.in.buffer = yuv422_buf[2];
+        ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
+
+        ESP_ERROR_CHECK(jpeg_encoder_process(jpeg_handle, &enc_config, yuv422_buf_sm, IMG_WIDTH * IMG_HEIGHT * 2 / 4,
+                                             jpg_buf[0], IMG_WIDTH * IMG_HEIGHT / 2, &jpg_size[0]));
+
+        cd_irq_save(&rpt_lock, flags);
+        swap(jpg_buf[0], jpg_buf[1]);
+        jpg_size[1] = jpg_size[0];
+        jpg_size[0] = 0;
+        cd_irq_restore(&rpt_lock, flags);
+        xTaskNotifyGive(rpt_task_handle);
     }
 }
 
@@ -194,8 +274,6 @@ void app_main(void)
     esp_err_t ret = ESP_FAIL;
     cd_main_early();
     cd_main_late();
-
-    jpeg_encoder_handle_t jpeg_handle;
 
     jpeg_encode_engine_cfg_t encode_eng_cfg = {
         .timeout_ms = 70,
@@ -227,14 +305,6 @@ void app_main(void)
             return;
         }
     }
-
-    jpeg_encode_cfg_t enc_config = {
-        .src_type = JPEG_ENCODE_IN_FORMAT_RGB565,
-        .sub_sample = JPEG_DOWN_SAMPLING_YUV422,
-        .image_quality = 80,
-        .width = IMG_WIDTH / 2,
-        .height = IMG_HEIGHT / 2,
-    };
 
 
     // mipi ldo
@@ -293,8 +363,6 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_isp_new_processor(&isp_config, &isp_proc));
     ESP_ERROR_CHECK(esp_isp_enable(isp_proc));
 
-    cam_notify_queue = xQueueCreate(2, sizeof(int8_t));
-
     for (int i = 0; i < 3; i++) {
         yuv422_buf[i] = aligned_alloc(0x40, IMG_YUV422_SIZE);
         if (!yuv422_buf[i]) {
@@ -308,9 +376,6 @@ void app_main(void)
         ESP_LOGE(TAG, "driver start fail");
         return;
     }
-
-    xTaskCreate(common_task, "common_task", 4096, NULL, 5, NULL);
-    xTaskCreate(report_task, "report_task", 4096, NULL, 10, &rpt_task_handle);
 
 
 #if 0
@@ -361,62 +426,9 @@ void app_main(void)
 
     ov5647_ext_init(cam_dev->sccb_handle);
 
-
-    ppa_client_handle_t ppa_srm_handle = NULL;
-    ppa_client_config_t ppa_srm_config = {
-        .oper_type = PPA_OPERATION_SRM,
-        .max_pending_trans_num = 1,
-    };
-    ESP_ERROR_CHECK(ppa_register_client(&ppa_srm_config, &ppa_srm_handle));
-
-    uint8_t *yuv422_buf_sm = aligned_alloc(0x40, IMG_YUV422_SIZE / 4);
-
-    ppa_srm_oper_config_t srm_config = {
-        .in.buffer = NULL,
-        .in.pic_w = IMG_WIDTH,
-        .in.pic_h = IMG_HEIGHT,
-        .in.block_w = IMG_WIDTH,
-        .in.block_h = IMG_HEIGHT,
-        .in.block_offset_x = 0,
-        .in.block_offset_y = 0,
-        .in.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
-        .out.buffer = yuv422_buf_sm,
-        .out.buffer_size = IMG_YUV422_SIZE / 4,
-        .out.pic_w = IMG_WIDTH / 2,
-        .out.pic_h = IMG_HEIGHT / 2,
-        .out.block_offset_x = 0,
-        .out.block_offset_y = 0,
-        .out.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
-        .rotation_angle = PPA_SRM_ROTATION_ANGLE_0,
-        .scale_x = 0.5,
-        .scale_y = 0.5,
-        .rgb_swap = 0,
-        .byte_swap = 0,
-        .mode = PPA_TRANS_MODE_BLOCKING,
-    };
-
-    while (true) {
-        uint32_t flags;
-        int8_t qval = 0;
-        xQueueReceive(cam_notify_queue, &qval, portMAX_DELAY);
-
-        cd_irq_save(&buf_lock, flags);
-        swap(yuv422_buf[1], yuv422_buf[2]);
-        cd_irq_restore(&buf_lock, flags);
-
-        srm_config.in.buffer = yuv422_buf[2];
-        ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
-
-        ESP_ERROR_CHECK(jpeg_encoder_process(jpeg_handle, &enc_config, yuv422_buf_sm, IMG_WIDTH * IMG_HEIGHT * 2 / 4,
-                                             jpg_buf[0], IMG_WIDTH * IMG_HEIGHT / 2, &jpg_size[0]));
-
-        cd_irq_save(&rpt_lock, flags);
-        swap(jpg_buf[0], jpg_buf[1]);
-        jpg_size[1] = jpg_size[0];
-        jpg_size[0] = 0;
-        cd_irq_restore(&rpt_lock, flags);
-        xTaskNotifyGive(rpt_task_handle);
-    }
+    xTaskCreate(common_task, "common_task", 4096, NULL, 5, NULL);
+    xTaskCreate(report_task, "report_task", 4096, NULL, 10, &rpt_task_handle);
+    xTaskCreate(encoder_task, "encoder_task", 4096, NULL, 8, &enc_task_handle);
 }
 
 static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data)
@@ -428,13 +440,13 @@ static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans
 
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data)
 {
-    static const int8_t qval = 0;
     uint32_t flags;
     BaseType_t task_woken = pdFALSE;
     cd_irq_save(&buf_lock, flags);
     swap(yuv422_buf[0], yuv422_buf[1]);
     cd_irq_restore(&buf_lock, flags);
-    if (xQueueSendFromISR(cam_notify_queue, &qval, &task_woken) == pdPASS)
-        portYIELD_FROM_ISR(task_woken);
+
+    vTaskNotifyGiveFromISR(enc_task_handle, &task_woken);
+    portYIELD_FROM_ISR(task_woken);
     return false;
 }
