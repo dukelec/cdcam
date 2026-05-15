@@ -53,7 +53,7 @@ typedef struct {
     uint8_t         skip;
 
     uint8_t         _reserved1[11];
-    bool            manual;
+    uint8_t         manual;
     uint16_t        exposure;
     uint8_t         agc;
     uint8_t         _reserved2[24];

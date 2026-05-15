@@ -115,6 +115,7 @@ static void report_task(void *arg)
             jpg_size[2] = 0;
         csa.capture_ctrl = 0;
         cd_irq_restore(&p5_lock, flags);
+        xTaskNotifyGive(dispatch_task_handle);
 
         if (!csa.capture_state && jpg_size[1] == 0) {
             ulTaskNotifyTake(pdTRUE, 10 / portTICK_PERIOD_MS);
@@ -143,7 +144,7 @@ static void report_task(void *arg)
             csa.hdr_cnt = 0;
             uint8_t *pos = jpg_buf[2];
             unsigned len = csa.capture_state != 2 ? jpg_size[2] : 0;
-            while (csa.capture_ctrl != 0x80) {
+            while (csa.capture_ctrl == 0) {
                 if (csa.capture_state == 2 && len == 0) {
                     cd_irq_save(&p5_lock, flags);
                     if (csa.img_read_bk[1] == 0 && csa.img_read[1] != 0) {

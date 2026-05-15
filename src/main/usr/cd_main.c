@@ -98,7 +98,7 @@ static void dispatch_task(void *arg)
         if (csa.capture_ctrl) {
             xTaskNotifyGive(rpt_task_handle);
             while (csa.capture_ctrl)
-                vTaskDelay(1);
+                ulTaskNotifyTake(pdTRUE, 10 / portTICK_PERIOD_MS);
         }
     }
 }
