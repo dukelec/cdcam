@@ -22,7 +22,8 @@ static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ct
 
 static cd_spinlock_t buf_lock = {0};
 static cd_spinlock_t rpt_lock = {0};
-static uint8_t *yuv422_buf[3] = {0};
+static uint8_t *yuv422_buf[2] = {0};
+static bool enc_busy = false;
 
 static uint8_t *raw_buf = NULL;
 static uint8_t *jpg_buf[3] = {0};
@@ -247,12 +248,10 @@ static void encoder_task(void *arg)
         uint32_t flags;
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        cd_irq_save(&buf_lock, flags);
-        swap(yuv422_buf[1], yuv422_buf[2]);
-        cd_irq_restore(&buf_lock, flags);
-
-        srm_config.in.buffer = yuv422_buf[2];
+        srm_config.in.buffer = yuv422_buf[1];
+        enc_busy = true;
         ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
+        enc_busy = false;
 
         ESP_ERROR_CHECK(jpeg_encoder_process(jpeg_handle, &enc_config, yuv422_buf_sm, IMG_WIDTH * IMG_HEIGHT * 2 / 4,
                                              jpg_buf[0], IMG_WIDTH * IMG_HEIGHT / 2, &jpg_size[0]));
@@ -367,7 +366,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_isp_new_processor(&isp_config, &isp_proc));
     ESP_ERROR_CHECK(esp_isp_enable(isp_proc));
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
         yuv422_buf[i] = aligned_alloc(0x40, IMG_YUV422_SIZE);
         if (!yuv422_buf[i]) {
             ESP_LOGE(TAG, "yuv422_buf[%d] alloc error", i);
@@ -444,11 +443,9 @@ static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans
 
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data)
 {
-    uint32_t flags;
     BaseType_t task_woken = pdFALSE;
-    cd_irq_save(&buf_lock, flags);
-    swap(yuv422_buf[0], yuv422_buf[1]);
-    cd_irq_restore(&buf_lock, flags);
+    if (enc_busy == false)
+        swap(yuv422_buf[0], yuv422_buf[1]);
 
     vTaskNotifyGiveFromISR(enc_task_handle, &task_woken);
     portYIELD_FROM_ISR(task_woken);
