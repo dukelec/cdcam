@@ -63,11 +63,12 @@ void configure_clock_output()
     ledc_timer_config(&ledc_timer_led);
 
     ledc_channel_config_t led_channels[] = {
-        { .gpio_num = led_w_pin, .channel = LEDC_CHANNEL_2 },
-        { .gpio_num = led_g_pin, .channel = LEDC_CHANNEL_3 },
+        { .gpio_num = led0_pin, .channel = LEDC_CHANNEL_1 },
+        { .gpio_num = led1_pin, .channel = LEDC_CHANNEL_2 },
+        { .gpio_num = led2_pin, .channel = LEDC_CHANNEL_3 },
     };
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 3; i++) {
         led_channels[i].speed_mode = LEDC_LOW_SPEED_MODE;
         led_channels[i].timer_sel = LEDC_TIMER_2;
         led_channels[i].duty = 10; // 10/256 duty
@@ -77,15 +78,21 @@ void configure_clock_output()
 }
 
 
-static void led_set_w(uint8_t duty_w)
+static void led_set_0(uint8_t duty_0)
 {
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2, duty_w);
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, duty_0);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
+}
+
+static void led_set_light(uint8_t duty_light)
+{
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2, duty_light);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_2);
 }
 
-static void led_set_g(uint8_t duty_g)
+static void led_set_uv(uint8_t duty_uv)
 {
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_3, duty_g);
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_3, duty_uv);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_3);
 }
 
@@ -110,21 +117,20 @@ static void dispatch_task(void *arg)
 static void led_task(void *arg)
 {
     uint32_t t_last = get_systick();
-    led_set_g(120);
-    led_set_w(10);
+    uint32_t breath_led_t_last = get_systick();
     
-    gpio_set_val(&led0_pin, 0);
-    gpio_set_val(&led1_pin, 0);
-    gpio_set_val(&led2_pin, 0);
+    // light
+    gpio_set_val(&led_w_pin, 0);
+    gpio_set_val(&led_g_pin, 0);
     gpio_config_t io_led_pin = {
-        .pin_bit_mask = (1ULL << led0_pin),
+        .pin_bit_mask = (1ULL << led_w_pin),
         .mode = GPIO_MODE_OUTPUT
     };
     gpio_config(&io_led_pin);
-    io_led_pin.pin_bit_mask = 1ULL << led1_pin;
+    io_led_pin.pin_bit_mask = 1ULL << led_g_pin;
     gpio_config(&io_led_pin);
-    io_led_pin.pin_bit_mask = 1ULL << led2_pin;
-    gpio_config(&io_led_pin);
+    gpio_set_val(&led_w_pin, 1);
+    gpio_set_val(&led_g_pin, 1);
 
     while (true) {
         vTaskDelay(50 / portTICK_PERIOD_MS);
@@ -137,9 +143,30 @@ static void led_task(void *arg)
 
             ESP_LOGI(tag, "free heap: %ld", esp_get_free_heap_size());
         }
-        gpio_set_val(&led0_pin, csa.led_en & 1);
-        gpio_set_val(&led1_pin, csa.led_en & 2);
-        gpio_set_val(&led2_pin, csa.led_en & 4);
+
+        // breath light
+        static uint8_t led_pwm_val = 0;
+        static int  led_pwm_dir = 0;
+        if ((uint32_t)(get_systick() - breath_led_t_last) >= 50) {
+            breath_led_t_last = get_systick();
+
+            // set pwm
+            led_set_0(led_pwm_val);
+
+            // set val
+            if (led_pwm_dir) {
+                int val = led_pwm_val + max((led_pwm_val / 10), 1) * led_pwm_dir;
+                led_pwm_val = min(max(val, 5), 255);
+            }
+            // set dir
+            if (led_pwm_val >= 255)
+                led_pwm_dir = -1;
+            else if (led_pwm_val <= 5)
+                led_pwm_dir = 1;
+        }
+
+        led_set_light(csa.light_en);
+        led_set_uv(csa.uv_en);
     }
 }
 

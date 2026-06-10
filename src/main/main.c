@@ -91,7 +91,7 @@ static void common_task(void *arg)
     uint8_t led_val_bk = 0;
     while (true) {
         vTaskDelay(50 / portTICK_PERIOD_MS);
-        if (led_val_bk != !!(csa.led_en & 0x10)) {
+        if (led_val_bk != !!(csa.ov5647_led_en & 0x10)) {
             ESP_LOGI(TAG, "led st: %d -> %d", led_val_bk, !led_val_bk);
             led_val_bk = !led_val_bk;
             ov5647_write(cam_dev->sccb_handle, 0x300d, led_val_bk ? 0x09 : 0x01);

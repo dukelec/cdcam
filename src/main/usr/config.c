@@ -168,7 +168,10 @@ void csa_list_show(void)
 
     CSA_SHOW(0, capture_ctrl, "0x80: cancel, 1: one-shot, 2: capture-and-wait, 8: continuous");
     CSA_SHOW(0, capture_state, "0: idle, 1: one-shot, 2: wait, 8: continuous");
-    CSA_SHOW(0, led_en, "Enable/disable LED");
+    CSA_SHOW(0, light_en, "Enable/disable fill light LED(8bit pwm)");
+    CSA_SHOW(0, uv_en, "Enable/disable UV LED(8bit pwm)");
+    //CSA_SHOW(0, display_bg_en, "Enable/disable LED(8bit pwm)");
+    //CSA_SHOW(0, ov5647_led_en, "Enable/disable LED(8bit pwm)");
     CSA_SHOW(0, hdr_cnt, "Img header cnt");
     CSA_SHOW(0, img_len, "Captured img length");
     CSA_SHOW(0, img_read, "Read offset and length");
