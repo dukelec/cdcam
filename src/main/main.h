@@ -64,7 +64,7 @@
 #define CDCAM_CAM_SCCB_SCL_IO               26
 #define CDCAM_CAM_SCCB_SDA_IO               27
 
-#define CDCAM_CAM_FORMAT                    "MIPI_2lane_24Minput_RAW8_1600x1600"
+#define CDCAM_CAM_FORMAT                    "MIPI_2lane_24Minput_RAW10_1280x960_binning_45fps"
 
 
 extern TaskHandle_t dispatch_task_handle;

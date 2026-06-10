@@ -12,8 +12,8 @@
 #include <math.h>
 
 static const char *TAG = "cdcam";
-#define IMG_WIDTH       1600
-#define IMG_HEIGHT      1600
+#define IMG_WIDTH       1280
+#define IMG_HEIGHT      960
 #define IMG_YUV422_SIZE (IMG_WIDTH * IMG_HEIGHT * 2)
 
 static jpeg_encoder_handle_t jpeg_handle;
@@ -327,8 +327,8 @@ void app_main(void)
         .h_res = IMG_WIDTH,
         .v_res = IMG_HEIGHT,
         .lane_bit_rate_mbps = CDCAM_MIPI_CSI_LANE_BITRATE_MBPS,
-        .input_data_color_type = CAM_CTLR_COLOR_RAW8,
-        .output_data_color_type = CAM_CTLR_COLOR_RAW8,
+        .input_data_color_type = CAM_CTLR_COLOR_RAW10,
+        .output_data_color_type = CAM_CTLR_COLOR_RAW10,
         .data_lane_num = 2,
         .byte_swap_en = false,
         .queue_items = 1,
@@ -356,12 +356,13 @@ void app_main(void)
     esp_isp_processor_cfg_t isp_config = {
         .clk_hz = 80 * 1000 * 1000,
         .input_data_source = ISP_INPUT_DATA_SOURCE_CSI,
-        .input_data_color_type = ISP_COLOR_RAW8,
+        .input_data_color_type = ISP_COLOR_RAW10,
         .output_data_color_type = ISP_COLOR_RGB565,
         .has_line_start_packet = false,
         .has_line_end_packet = false,
         .h_res = IMG_WIDTH,
         .v_res = IMG_HEIGHT,
+        .bayer_order = COLOR_RAW_ELEMENT_ORDER_GBRG
     };
     ESP_ERROR_CHECK(esp_isp_new_processor(&isp_config, &isp_proc));
     ESP_ERROR_CHECK(esp_isp_enable(isp_proc));
@@ -427,7 +428,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_isp_gamma_enable(isp_proc));
 #endif
 
-    ov5647_ext_init(cam_dev->sccb_handle);
+    //ov5647_ext_init(cam_dev->sccb_handle);
 
     xTaskCreate(common_task, "common_task", 4096, NULL, 5, NULL);
     xTaskCreate(report_task, "report_task", 4096, NULL, 10, &rpt_task_handle);

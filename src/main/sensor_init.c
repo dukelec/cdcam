@@ -72,6 +72,10 @@ void cdcam_sensor_init(int i2c_port, esp_cam_sensor_device_t **out_cam_dev)
             cam_cur_fmt = (esp_cam_sensor_format_t *) & (parray[i].name);
         }
     }
+    if (!cam_cur_fmt) {
+        ESP_LOGE(TAG, "Unsupported format");
+        ESP_ERROR_CHECK(ESP_ERR_INVALID_ARG);
+    }
 
     ret = esp_cam_sensor_set_format(cam, (const esp_cam_sensor_format_t *) cam_cur_fmt);
     if (ret != ESP_OK) {

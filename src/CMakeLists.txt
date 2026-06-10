@@ -21,6 +21,11 @@ add_compile_definitions(SW_VER_FULL=\"${GIT_VERSION_FULL}\")
 add_compile_definitions(SW_VER=\"${GIT_VERSION}\")
 
 
+set(EXTRA_COMPONENT_DIRS
+    ${CMAKE_SOURCE_DIR}/esp_video_components/esp_cam_sensor
+    ${CMAKE_SOURCE_DIR}/esp_video_components/esp_sccb_intf
+)
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(cdcam)
 

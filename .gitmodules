@@ -1,0 +1,4 @@
+[submodule "esp_video_components"]
+	path = src/esp_video_components
+	url = https://github.com/espressif/esp-video-components.git
+
