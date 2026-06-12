@@ -12,20 +12,32 @@
 #include <math.h>
 
 static const char *TAG = "cdcam";
+
 #define IMG_WIDTH       1280
 #define IMG_HEIGHT      960
-#define IMG_YUV422_SIZE (IMG_WIDTH * IMG_HEIGHT * 2)
+#define IMG_YUV422_SIZE (((IMG_WIDTH * IMG_HEIGHT * 2) + 63) & ~63)
+
+#define ROI_IN_X        0
+#define ROI_IN_Y        0
+#define ROI_IN_WIDTH    1280
+#define ROI_IN_HEIGHT   960
+#define ROI_SCALE_NUM   8  // numerator
+#define ROI_SCALE       (ROI_SCALE_NUM / 16.f)
+#define ROI_OUT_WIDTH   ((int)(ROI_IN_WIDTH * ROI_SCALE))
+#define ROI_OUT_HEIGHT  ((int)(ROI_IN_HEIGHT * ROI_SCALE))
+#define ROI_OUT_SIZE    (((ROI_OUT_WIDTH * ROI_OUT_HEIGHT * 2) + 63) & ~63)
+
+#define JPG_BUF_SIZE    ((((int)(ROI_OUT_SIZE * 1.5f)) + 63) & ~63)
+
 
 static jpeg_encoder_handle_t jpeg_handle;
 static bool s_camera_get_new_vb(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
 static bool s_camera_get_finished_trans(esp_cam_ctlr_handle_t handle, esp_cam_ctlr_trans_t *trans, void *user_data);
 
-static cd_spinlock_t buf_lock = {0};
 static cd_spinlock_t rpt_lock = {0};
 static uint8_t *yuv422_buf[2] = {0};
-static bool enc_busy = false;
+static volatile bool enc_busy = false;
 
-static uint8_t *raw_buf = NULL;
 static uint8_t *jpg_buf[3] = {0};
 static uint32_t jpg_size[3] = {0};
 
@@ -207,8 +219,8 @@ static void encoder_task(void *arg)
         .src_type = JPEG_ENCODE_IN_FORMAT_RGB565,
         .sub_sample = JPEG_DOWN_SAMPLING_YUV422,
         .image_quality = 80,
-        .width = IMG_WIDTH / 2,
-        .height = IMG_HEIGHT / 2,
+        .width = ROI_OUT_WIDTH,
+        .height = ROI_OUT_HEIGHT,
     };
 
     ppa_client_handle_t ppa_srm_handle = NULL;
@@ -218,27 +230,31 @@ static void encoder_task(void *arg)
     };
     ESP_ERROR_CHECK(ppa_register_client(&ppa_srm_config, &ppa_srm_handle));
 
-    uint8_t *yuv422_buf_sm = aligned_alloc(0x40, IMG_YUV422_SIZE / 4);
+    uint8_t *yuv422_buf_sm = aligned_alloc(0x40, ROI_OUT_SIZE);
+
+    ESP_LOGI(TAG, "roi_out_size: %d (%d x %d)", ROI_OUT_SIZE, ROI_OUT_WIDTH, ROI_OUT_HEIGHT);
 
     ppa_srm_oper_config_t srm_config = {
         .in.buffer = NULL,
         .in.pic_w = IMG_WIDTH,
         .in.pic_h = IMG_HEIGHT,
-        .in.block_w = IMG_WIDTH,
-        .in.block_h = IMG_HEIGHT,
-        .in.block_offset_x = 0,
-        .in.block_offset_y = 0,
+        .in.block_w = ROI_IN_WIDTH,
+        .in.block_h = ROI_IN_HEIGHT,
+        .in.block_offset_x = ROI_IN_X,
+        .in.block_offset_y = ROI_IN_Y,
         .in.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
         .out.buffer = yuv422_buf_sm,
-        .out.buffer_size = IMG_YUV422_SIZE / 4,
-        .out.pic_w = IMG_WIDTH / 2,
-        .out.pic_h = IMG_HEIGHT / 2,
+        .out.buffer_size = ROI_OUT_SIZE,
+        .out.pic_w = ROI_OUT_WIDTH,
+        .out.pic_h = ROI_OUT_HEIGHT,
         .out.block_offset_x = 0,
         .out.block_offset_y = 0,
         .out.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
         .rotation_angle = PPA_SRM_ROTATION_ANGLE_0,
-        .scale_x = 0.5,
-        .scale_y = 0.5,
+        .mirror_x = false,
+        .mirror_y = false,
+        .scale_x = ROI_SCALE,
+        .scale_y = ROI_SCALE,
         .rgb_swap = 0,
         .byte_swap = 0,
         .mode = PPA_TRANS_MODE_BLOCKING,
@@ -248,13 +264,13 @@ static void encoder_task(void *arg)
         uint32_t flags;
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        srm_config.in.buffer = yuv422_buf[1];
         enc_busy = true;
+        srm_config.in.buffer = yuv422_buf[1];
         ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
         enc_busy = false;
 
-        ESP_ERROR_CHECK(jpeg_encoder_process(jpeg_handle, &enc_config, yuv422_buf_sm, IMG_WIDTH * IMG_HEIGHT * 2 / 4,
-                                             jpg_buf[0], IMG_WIDTH * IMG_HEIGHT / 2, &jpg_size[0]));
+        ESP_ERROR_CHECK(jpeg_encoder_process(jpeg_handle, &enc_config, yuv422_buf_sm, ROI_OUT_SIZE,
+                                             jpg_buf[0], JPG_BUF_SIZE, &jpg_size[0]));
 
         cd_irq_save(&rpt_lock, flags);
         swap(jpg_buf[0], jpg_buf[1]);
@@ -286,23 +302,12 @@ void app_main(void)
         .buffer_direction = JPEG_DEC_ALLOC_OUTPUT_BUFFER,
     };
 
-    jpeg_encode_memory_alloc_cfg_t tx_mem_cfg = {
-        .buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER,
-    };
-
     ESP_ERROR_CHECK(jpeg_new_encoder_engine(&encode_eng_cfg, &jpeg_handle));
-
-    size_t tx_buffer_size = 0;
-    raw_buf = (uint8_t*)jpeg_alloc_encoder_mem(IMG_WIDTH * IMG_HEIGHT, &tx_mem_cfg, &tx_buffer_size);
-    if (raw_buf == NULL) {
-        ESP_LOGE(TAG, "alloc raw buffer error");
-        return;
-    }
 
     size_t rx_buffer_size = 0;
     // assume that compression ratio of 10 to 1
     for (int i = 0; i < 3; i++) {
-        jpg_buf[i] = (uint8_t*)jpeg_alloc_encoder_mem(IMG_WIDTH * IMG_HEIGHT / 2, &rx_mem_cfg, &rx_buffer_size);
+        jpg_buf[i] = (uint8_t*)jpeg_alloc_encoder_mem(JPG_BUF_SIZE, &rx_mem_cfg, &rx_buffer_size);
         if (jpg_buf[i] == NULL) {
             ESP_LOGE(TAG, "alloc jpg_buf error");
             return;
@@ -382,7 +387,7 @@ void app_main(void)
     }
 
 
-#if 0
+#if 1
     esp_isp_bf_config_t bf_config = {
         .denoising_level = 5,
         .bf_template = {
@@ -395,7 +400,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_isp_bf_enable(isp_proc));
 #endif
 
-#if 0
+#if 1
     esp_isp_demosaic_config_t demosaic_config = {
         .grad_ratio = {
             .integer = 2,

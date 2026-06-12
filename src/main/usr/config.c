@@ -19,7 +19,7 @@ const csa_t csa_dft = {
         .cam_dst = { .addr = {0x00, 0x00, 0x00}, .port = 0x10 },
         .width = 800,
         .height = 800,
-        .skip = 0,
+        .skip = 3,
         .manual = false,
         .exposure = 50,
         .agc = 0
