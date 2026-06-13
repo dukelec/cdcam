@@ -19,6 +19,7 @@ src/build/
 #
 !.gitignore
 !.gitkeep
+!.gitmodules
 !.mailmap
 
 *.orig

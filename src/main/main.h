@@ -61,14 +61,13 @@
 
 
 #define CDCAM_RGB565_BITS_PER_PIXEL         16
-#define CDCAM_MIPI_IDI_CLOCK_RATE           50000000
-#define CDCAM_MIPI_CSI_LANE_BITRATE_MBPS    200 //line_rate = pclk * 4
+#define CDCAM_MIPI_CSI_LANE_BITRATE_MBPS    200
 
 #define CDCAM_CAM_SCCB_FREQ                 100000
 #define CDCAM_CAM_SCCB_SCL_IO               26
 #define CDCAM_CAM_SCCB_SDA_IO               27
 
-#define CDCAM_CAM_FORMAT                    "MIPI_2lane_24Minput_RAW8_1600x1600"
+#define CDCAM_CAM_FORMAT                    "MIPI_2lane_24Minput_RAW10_1280x960_binning_45fps"
 
 
 extern TaskHandle_t dispatch_task_handle;

@@ -3,8 +3,6 @@ idf_component_register(
     SRCS
         "main.c"
         "sensor_init.c"
-        "esp_cam/esp_cam_sensor.c"
-        "esp_cam/ov5647.c"
         "utils/cd_list.c"
         "utils/cdctl_pll_cal.c"
         "utils/cdctl_it.c"
@@ -18,7 +16,6 @@ idf_component_register(
         "."
         "usr"
         "utils"
-        "esp_cam"
 
     REQUIRES
         esp_mm
@@ -32,9 +29,5 @@ idf_component_register(
         esp_driver_gpio
         esp_driver_ledc
         esp_driver_ppa
-
-    LDFRAGMENTS
-        linker.lf
+        esp_cam_sensor
 )
-
-target_link_libraries(${COMPONENT_LIB} INTERFACE "-u ov5647_detect")
