@@ -17,10 +17,10 @@ static const char *TAG = "cdcam";
 #define IMG_HEIGHT      960
 #define IMG_YUV422_SIZE (((IMG_WIDTH * IMG_HEIGHT * 2) + 63) & ~63)
 
-#define ROI_IN_X        0
-#define ROI_IN_Y        0
-#define ROI_IN_WIDTH    1280
-#define ROI_IN_HEIGHT   960
+#define ROI_IN_X        440
+#define ROI_IN_Y        115
+#define ROI_IN_WIDTH    400
+#define ROI_IN_HEIGHT   600
 #define ROI_SCALE_NUM   8  // numerator
 #define ROI_SCALE       (ROI_SCALE_NUM / 16.f)
 #define ROI_OUT_WIDTH   ((int)(ROI_IN_WIDTH * ROI_SCALE))
