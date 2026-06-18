@@ -17,10 +17,10 @@ static const char *TAG = "cdcam";
 #define IMG_HEIGHT      960
 #define IMG_YUV422_SIZE (((IMG_WIDTH * IMG_HEIGHT * 2) + 63) & ~63)
 
-#define ROI_IN_X        440
-#define ROI_IN_Y        115
-#define ROI_IN_WIDTH    400
-#define ROI_IN_HEIGHT   600
+#define ROI_IN_X        380
+#define ROI_IN_Y        60
+#define ROI_IN_WIDTH    500
+#define ROI_IN_HEIGHT   900
 #define ROI_SCALE_NUM   8  // numerator
 #define ROI_SCALE       (ROI_SCALE_NUM / 16.f)
 #define ROI_OUT_WIDTH   ((int)(ROI_IN_WIDTH * ROI_SCALE))
@@ -433,7 +433,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_isp_gamma_enable(isp_proc));
 #endif
 
-    //ov5647_ext_init(cam_dev->sccb_handle);
+    ov5647_ext_init(cam_dev->sccb_handle);
 
     xTaskCreate(common_task, "common_task", 4096, NULL, 5, NULL);
     xTaskCreate(report_task, "report_task", 4096, NULL, 10, &rpt_task_handle);
