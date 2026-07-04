@@ -8,6 +8,7 @@
  */
 
 #include "cd_main.h"
+#include "esp_mac.h"
 static const char *tag = "comm-ser";
 
 char cpu_id[25] = { 0 };
@@ -25,6 +26,10 @@ static void send_frame(cd_frame_t *frame, uint8_t p_len)
 
 static void init_info_str(void)
 {
+    uint8_t mac[6] = { 0 };
+    esp_efuse_mac_get_default(mac);
+    sprintf(cpu_id, "%02x%02x%02x%02x%02x%02x",
+            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     // M: model; S: serial string; HW: hardware version; SW: software version
     sprintf(info_str, "M: cdcam; S: %s; SW: %s", cpu_id, SW_VER);
     d_info("info: %s, git: %s\n", info_str, SW_VER_FULL);
