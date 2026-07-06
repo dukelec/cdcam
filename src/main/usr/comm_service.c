@@ -21,7 +21,7 @@ static void send_frame(cd_frame_t *frame, uint8_t p_len)
     frame->dat[2] = p_len + 2;
     swap(frame->dat[0], frame->dat[1]); // swap mac
     swap(frame->dat[3], frame->dat[4]); // swap port
-    cdctl_put_tx_frame(frame);
+    cdctl_send_frame(&r_dev.cd_dev, frame);
 }
 
 static void init_info_str(void)
@@ -68,7 +68,7 @@ static void p8_handler(cd_frame_t *frame)
 
     } else if (*p_dat == 0x00 && p_len == 6) {
         uint32_t addr = get_unaligned32(p_dat + 1);
-        uint8_t len = min(p_dat[5], CDN_MAX_DAT - 1);
+        uint8_t len = min(p_dat[5], CDN_MAX_PAYLOAD - 1);
         int ret = esp_flash_read(NULL, p_dat + 1, addr, len);
         *p_dat = ret ? 1 : 0;
         if (reply)
@@ -115,7 +115,7 @@ static void p5_handler(cd_frame_t *frame)
 
     if (*p_dat == 0x00 && p_len == 4) {
         uint16_t offset = get_unaligned16(p_dat + 1);
-        uint8_t len = min(p_dat[3], CDN_MAX_DAT - 1);
+        uint8_t len = min(p_dat[3], CDN_MAX_PAYLOAD - 1);
         cd_irq_save(&p5_lock, flags);
         memcpy(p_dat + 1, ((void *) &csa) + offset, len);
         cd_irq_restore(&p5_lock, flags);
@@ -142,7 +142,7 @@ static void p5_handler(cd_frame_t *frame)
 
     } else if (*p_dat == 0x01 && p_len == 4) {
         uint16_t offset = get_unaligned16(p_dat + 1);
-        uint8_t len = min(p_dat[3], CDN_MAX_DAT - 1);
+        uint8_t len = min(p_dat[3], CDN_MAX_PAYLOAD - 1);
         memcpy(p_dat + 1, ((void *) &csa_dft) + offset, len);
         *p_dat = 0;
         if (reply)
@@ -159,7 +159,7 @@ static void p5_handler(cd_frame_t *frame)
 
 static inline void serial_cmd_dispatch(void)
 {
-    cd_frame_t *frame = cd_list_get(&cdctl_rx_head);
+    cd_frame_t *frame = cdctl_recv_frame(&r_dev.cd_dev);
 
     if (frame) {
         uint8_t server_num = frame->dat[4];
@@ -191,7 +191,9 @@ void comm_service_poll(void)
         save_conf();
     }
     if (csa.do_reboot) {
-        ESP_LOGI(tag, "do_reboot ...\n");
+        // 1: reboot and stay in bootloader; 2: reboot and boot app
+        REG_WRITE(BL_ARGS_REG, 0xcdcd0000 | csa.do_reboot);
+        ESP_LOGI(tag, "do_reboot (%d) ...\n", csa.do_reboot);
         esp_restart();
     }
 }

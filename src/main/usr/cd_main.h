@@ -19,6 +19,9 @@
 #define APP_CONF_ADDR       0x003ff000 // last page
 #define APP_CONF_VER        0x0104
 
+// cross-reset flag to the bootloader (keep same as bootloader cd_config.h)
+#define BL_ARGS_REG         LP_SYSTEM_REG_LP_STORE0_REG
+
 #define FRAME_MAX           500
 
 
@@ -85,6 +88,7 @@ int flash_write(uint32_t addr, uint32_t len, const uint8_t *buf);
 int flash_cal_crc(uint32_t src_addr, uint32_t len, uint16_t *crc);
 
 extern list_head_t frame_free_head;
+extern cdctl_dev_t r_dev;
 
 void comm_service_init(void);
 void comm_service_poll(void);

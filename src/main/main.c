@@ -53,7 +53,7 @@ static inline void sent_cam_frame(cd_frame_t *frame)
     // [5:4] FRAGMENT: 00: error, 01: first, 10: more, 11: last, [3:0]: cnt
     frame->dat[3] |= 0x40;
     frame->dat[4] = csa.cam_dst.port;
-    cdctl_put_tx_frame(frame);
+    cdctl_send_frame(&r_dev.cd_dev, frame);
 }
 
 

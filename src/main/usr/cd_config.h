@@ -10,12 +10,12 @@
 #ifndef __CD_CONFIG_H__
 #define __CD_CONFIG_H__
 
-#define CDCTL_OSC_CLK       8000000UL // 8MHz
+#define CDCTL_OSC_CLK       10000000UL // 10MHz
 
-//#define CD_ARCH_SPI
+#define CD_ARCH_SPI_DMA
 
-#define CD_FRAME_SIZE       258
-#define CDN_MAX_DAT         253
+#define CD_FRAME_SIZE       256
+#define CDN_MAX_PAYLOAD     251
 
 #define CD_DEBUG
 //#define CD_VERBOSE

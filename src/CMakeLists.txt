@@ -32,20 +32,20 @@ project(cdcam)
 
 set(ELF_FILE "${CMAKE_BINARY_DIR}/cdcam.elf")
 set(BIN_FILE "${CMAKE_BINARY_DIR}/cdcam.bin")
-set(HEX_FILE "${CMAKE_BINARY_DIR}/cdcam.hex")
+set(OTA_HEX_FILE "${CMAKE_BINARY_DIR}/cdcam_ota.hex")
+set(IAP_HEX_FILE "${CMAKE_BINARY_DIR}/cdcam_iap.hex")
 set(PY_SCRIPT "${CMAKE_SOURCE_DIR}/tools/app_bin2hex.py")
 
 add_custom_command(
-    OUTPUT ${HEX_FILE}
-    COMMAND ${CMAKE_COMMAND} -E echo "Converting BIN to IAP HEX..." 
-    COMMAND python3 ${PY_SCRIPT} ${BIN_FILE}
+    OUTPUT ${OTA_HEX_FILE} ${IAP_HEX_FILE}
+    COMMAND python3 ${PY_SCRIPT} ${BIN_FILE} ${OTA_HEX_FILE} ${IAP_HEX_FILE}
     DEPENDS ${ELF_FILE}
-    COMMENT "Auto converting ELF to IAP HEX"
+    COMMENT "Converting BIN to OTA and IAP HEX"
     VERBATIM
 )
 
-add_custom_target(generate_iap_hex ALL
-    DEPENDS ${HEX_FILE}
+add_custom_target(generate_hex ALL
+    DEPENDS ${OTA_HEX_FILE} ${IAP_HEX_FILE}
 )
 
-add_dependencies(generate_iap_hex app)
+add_dependencies(generate_hex app)

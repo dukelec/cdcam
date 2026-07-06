@@ -1,8 +1,28 @@
-idf_component_register(SRCS "hooks.c" "modbus_crc.c")
 
-# We need to force GCC to integrate this static library into the
-# bootloader link. Indeed, by default, as the hooks in the bootloader are weak,
-# the linker would just ignore the symbols in the extra. (i.e. not strictly
-# required)
-# To do so, we need to define the symbol (function) `bootloader_hooks_include`
-# within hooks.c source file.
+idf_component_register(
+    SRCS
+        "hooks.c"
+        "config.c"
+        "comm_service.c"
+        "cdctl_spi_wr.c"
+        "cdnet/utils/modbus_crc.c"
+        "cdnet/utils/cd_list.c"
+        "cdnet/utils/hex_dump.c"
+        "cdnet/dev/cdctl.c"
+        "cdnet/dev/cdctl_pll_cal.c"
+
+    INCLUDE_DIRS
+        "."
+        "cdnet/dev"
+        "cdnet/utils"
+        "cdnet/arch/esp32_riscv"
+
+    PRIV_REQUIRES
+        hal
+        soc
+        log
+        esp_rom
+        esp_hal_gpio
+        esp_hal_clock
+        esp_hal_wdt
+)
