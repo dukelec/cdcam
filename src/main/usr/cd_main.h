@@ -88,6 +88,7 @@ int flash_write(uint32_t addr, uint32_t len, const uint8_t *buf);
 int flash_cal_crc(uint32_t src_addr, uint32_t len, uint16_t *crc);
 
 extern list_head_t frame_free_head;
+extern list_head_t local_tx_head;
 extern cdctl_dev_t r_dev;
 
 void comm_service_init(void);

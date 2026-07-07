@@ -49,3 +49,4 @@ add_custom_target(generate_hex ALL
 )
 
 add_dependencies(generate_hex app)
+

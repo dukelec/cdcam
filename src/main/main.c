@@ -7,9 +7,9 @@
  * Author: Duke Fong <d@d-l.io>
  */
 
+#include <math.h>
 #include "main.h"
 #include "cd_main.h"
-#include <math.h>
 
 static const char *TAG = "cdcam";
 
@@ -53,7 +53,9 @@ static inline void sent_cam_frame(cd_frame_t *frame)
     // [5:4] FRAGMENT: 00: error, 01: first, 10: more, 11: last, [3:0]: cnt
     frame->dat[3] |= 0x40;
     frame->dat[4] = csa.cam_dst.port;
-    cdctl_send_frame(&r_dev.cd_dev, frame);
+    cd_list_put(&local_tx_head, frame);
+    if (dispatch_task_handle)
+        xTaskNotifyGive(dispatch_task_handle);
 }
 
 

@@ -69,7 +69,7 @@ int flash_erase(uint32_t addr, uint32_t len)
 {
     uint32_t _addr = addr & ~4095;
     uint32_t _len = len + (addr - _addr);
-    _len = (len + 4095) & ~4095;
+    _len = (_len + 4095) & ~4095;
     int ret = esp_flash_erase_region(NULL, _addr, _len);
     d_debug("flash erase: %08lx +%08lx (%08lx +%08lx), ret: %d\n", addr, len, _addr, _len, ret);
     return ret ? -1 : 0;
