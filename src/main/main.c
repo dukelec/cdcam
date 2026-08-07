@@ -7,15 +7,21 @@
  * Author: Duke Fong <d@d-l.io>
  */
 
+#include <math.h>
 #include "main.h"
 #include "cd_main.h"
-#include <math.h>
 
 static const char *TAG = "cdcam";
 
 #define IMG_WIDTH       1280
 #define IMG_HEIGHT      960
 #define IMG_YUV422_SIZE (((IMG_WIDTH * IMG_HEIGHT * 2) + 63) & ~63)
+
+// vignetting compensation gain at corners, center is 1.0, max 3.99;
+// r falls off more than g/b towards corners on this module (edges turn cyan without compensation)
+#define LSC_CORNER_GAIN_R 2.5f
+#define LSC_CORNER_GAIN_G 2.0f
+#define LSC_CORNER_GAIN_B 1.9f
 
 #define ROI_IN_X        380
 #define ROI_IN_Y        60
@@ -53,7 +59,9 @@ static inline void sent_cam_frame(cd_frame_t *frame)
     // [5:4] FRAGMENT: 00: error, 01: first, 10: more, 11: last, [3:0]: cnt
     frame->dat[3] |= 0x40;
     frame->dat[4] = csa.cam_dst.port;
-    cdctl_put_tx_frame(frame);
+    cd_list_put(&local_tx_head, frame);
+    if (dispatch_task_handle)
+        xTaskNotifyGive(dispatch_task_handle);
 }
 
 
@@ -287,6 +295,13 @@ static uint32_t s_gamma_curve(uint32_t x)
     return powf((float)x / 256, 0.7) * 256;
 }
 
+static isp_lsc_gain_t s_lsc_gain(float corner_gain, float r2)
+{
+    float gain = 1.0f + (corner_gain - 1.0f) * r2;
+    uint32_t fixed = min((uint32_t)(gain * 256.0f + 0.5f), 1023); // u2.8
+    return (isp_lsc_gain_t){ .integer = fixed >> 8, .decimal = fixed & 0xff };
+}
+
 
 void app_main(void)
 {
@@ -431,6 +446,42 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_isp_gamma_configure(isp_proc, COLOR_COMPONENT_G, &pts));
     ESP_ERROR_CHECK(esp_isp_gamma_configure(isp_proc, COLOR_COMPONENT_B, &pts));
     ESP_ERROR_CHECK(esp_isp_gamma_enable(isp_proc));
+#endif
+
+#if 1
+    esp_isp_lsc_gain_array_t gain_array = {};
+    size_t gain_size = 0;
+    ESP_ERROR_CHECK(esp_isp_lsc_allocate_gain_array(isp_proc, &gain_array, &gain_size));
+
+    esp_isp_lsc_config_t lsc_config = {
+        .gain_array = &gain_array,
+    };
+
+    // lut covers the full frame, grid pitch 64 pixels (32 bayer quads), grid points
+    // sit on both edges (fencepost), entry (0,0) is the top-left corner of the frame,
+    // grids formula same as ISP_LSC_GET_GRIDS in isp_lsc.c
+    int grids_x = (IMG_WIDTH - 1) / 2 / 32 + 2;
+    int grids_y = (IMG_HEIGHT - 1) / 2 / 32 + 2;
+    if (grids_x * grids_y != gain_size) {
+        ESP_LOGE(TAG, "lsc grids %dx%d != gain_size %d", grids_x, grids_y, (int)gain_size);
+        return;
+    }
+    float cx = (grids_x - 1) / 2.0f;
+    float cy = (grids_y - 1) / 2.0f;
+    for (int y = 0; y < grids_y; y++) {
+        for (int x = 0; x < grids_x; x++) {
+            float dx = (x - cx) / cx;                // 0 at center, ±1.0 at edges
+            float dy = (y - cy) / cy;
+            float r2 = (dx * dx + dy * dy) / 2.0f;   // 1.0 at corners
+            int i = y * grids_x + x;
+            gain_array.gain_r[i] = s_lsc_gain(LSC_CORNER_GAIN_R, r2);
+            gain_array.gain_gr[i] = s_lsc_gain(LSC_CORNER_GAIN_G, r2);
+            gain_array.gain_gb[i] = s_lsc_gain(LSC_CORNER_GAIN_G, r2);
+            gain_array.gain_b[i] = s_lsc_gain(LSC_CORNER_GAIN_B, r2);
+        }
+    }
+    ESP_ERROR_CHECK(esp_isp_lsc_configure(isp_proc, &lsc_config));
+    ESP_ERROR_CHECK(esp_isp_lsc_enable(isp_proc));
 #endif
 
     ov5647_ext_init(cam_dev->sccb_handle);

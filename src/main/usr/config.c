@@ -15,7 +15,16 @@
 const csa_t csa_dft = {
         .magic_code = 0xcdcd,
         .conf_ver = APP_CONF_VER,
-        .bus_cfg = CDCTL_CFG_DFT(0x30),
+        .bus_cfg = {
+                .mac = 0x30,
+                .baud_l = 2000000,
+                .baud_h = 20000000,
+                .filter_m = { 0xff, 0xff },
+                .mode = 1,
+                .tx_permit_len = 0x14,
+                .max_idle_len = 0xc8,
+                .tx_pre_len = 0x01
+        },
         .cam_dst = { .addr = {0x00, 0x00, 0x20}, .port = 0x10 },
         .width = 800,
         .height = 800,
@@ -69,7 +78,7 @@ int flash_erase(uint32_t addr, uint32_t len)
 {
     uint32_t _addr = addr & ~4095;
     uint32_t _len = len + (addr - _addr);
-    _len = (len + 4095) & ~4095;
+    _len = (_len + 4095) & ~4095;
     int ret = esp_flash_erase_region(NULL, _addr, _len);
     d_debug("flash erase: %08lx +%08lx (%08lx +%08lx), ret: %d\n", addr, len, _addr, _len, ret);
     return ret ? -1 : 0;
@@ -135,7 +144,7 @@ void csa_list_show(void)
 
     CSA_SHOW(1, conf_ver, "Config version");
     CSA_SHOW(1, conf_from, "0: default config, 1: all from flash, 2: partly from flash");
-    CSA_SHOW(0, do_reboot, "Write 2 to reboot");
+    CSA_SHOW(0, do_reboot, "Reboot: 1 stay in bootloader, 2 boot app");
     CSA_SHOW(0, save_conf, "Write 1 to save current config to flash");
     d_info("\n");
 

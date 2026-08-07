@@ -7,95 +7,24 @@
  * Author: Duke Fong <d@d-l.io>
  */
 
-#include "esp_log.h"
-#include "esp_rom_spiflash.h"
+#include "hooks.h"
 #include "modbus_crc.h"
-
-#define min(a, b) ((a) < (b) ? (a) : (b))
 
 #define APP_ADDR     0x20000
 #define APP_MAX     0x100000
 #define OTA_ADDR    0x120000
 
 
-static uint8_t buffer[4096] __attribute__((aligned(4)));
+extern uint8_t fbuf[4096];
 
+static spi_t cd_spi = {
+        .cs = BL_CD_CS_PIN, .sck = BL_CD_SCK_PIN,
+        .mosi = BL_CD_MOSI_PIN, .miso = BL_CD_MISO_PIN
+};
 
-static void hex_dump(const void *addr, int len)
-{
-    int i;
-    char sbuf[17];
-    const uint8_t *pc = (const uint8_t *)addr;
-
-    if (len == 0 || len < 0)
-        return;
-
-    for (i = 0; i < len; i++) {
-        if ((i % 16) == 0) {
-            if (i != 0) {
-                esp_rom_printf("  %s\n", sbuf);
-            }
-            esp_rom_printf("  %04x ", i); // offset
-        }
-        esp_rom_printf(" %02x", pc[i]);
-
-        // printable ascii character
-        if (pc[i] < 0x20 || pc[i] > 0x7e)
-            sbuf[i % 16] = '.';
-        else
-            sbuf[i % 16] = pc[i];
-        sbuf[(i % 16) + 1] = '\0';
-    }
-
-    // pad out last line
-    while ((i % 16) != 0) {
-        esp_rom_printf("   ");
-        i++;
-    }
-    // print the final ascii field
-    esp_rom_printf("  %s\n", sbuf);
-}
-
-
-static int flash_cal_crc(uint32_t src_addr, uint32_t len, uint16_t *crc)
-{
-    uint16_t c = 0xffff;
-    uint32_t p = src_addr;
-    while (true) {
-        uint32_t left_len = len - (p - src_addr);
-        uint32_t sub_len = min(left_len, 4096);
-        if (sub_len == 0)
-            break;
-        uint32_t copy_len = (sub_len + 3) & ~3;
-        int ret = esp_rom_spiflash_read(p, (void *)buffer, copy_len);
-        if (ret != 0)
-            return ret;
-        c = crc16_sub(buffer, sub_len, c);
-        p += sub_len;
-    }
-    *crc = c;
-    return 0;
-}
-
-static int flash_move(uint32_t src_addr, uint32_t dst_addr, uint32_t len)
-{
-    uint32_t p = src_addr;
-    while (true) {
-        uint32_t left_len = len - (p - src_addr);
-        uint32_t sub_len = min(left_len, 4096);
-        if (sub_len == 0)
-            break;
-        uint32_t copy_len = (sub_len + 3) & ~3;
-        int ret = esp_rom_spiflash_read(p, (void *)buffer, copy_len);
-        if (ret != 0)
-            return ret;
-        ret = esp_rom_spiflash_write(dst_addr + (p - src_addr), (void *)buffer, copy_len);
-        if (ret != 0)
-            return ret;
-        p += sub_len;
-    }
-    return 0;
-}
+static cd_frame_t frame_alloc[FRAME_MAX];
+list_head_t frame_free_head = {0};
+cdctl_dev_t r_dev = {0};    // CDBUS
 
 
 /* Function used to tell the linker to include this file
@@ -112,12 +41,11 @@ void bootloader_before_init(void) {
     //ESP_LOGI("HOOK", "This hook is called BEFORE bootloader initialization");
 }
 
-void bootloader_after_init(void) {
-    ESP_LOGI("HOOK", "cdcam bootloader, v1.2");
-    ESP_LOGI("HOOK", "test read at 0x%08x buf: %08x", OTA_ADDR, (uint32_t)buffer);
-    int ret = esp_rom_spiflash_read(OTA_ADDR, (void *)buffer, 256);
+static void ota_update(void) {
+    ESP_LOGI("HOOK", "test read at 0x%08x buf: %08x", OTA_ADDR, (uint32_t)fbuf);
+    int ret = esp_rom_spiflash_read(OTA_ADDR, (void *)fbuf, 256);
     if (!ret)
-        hex_dump(buffer, 256);
+        hex_dump(fbuf, 256);
     
     uint32_t hdr;
     ret = esp_rom_spiflash_read(OTA_ADDR, &hdr, 4);
@@ -182,10 +110,112 @@ void bootloader_after_init(void) {
         return;
     }
 
-    ESP_LOGI("HOOK", "test read after erase at 0x%08x buf: %08x", OTA_ADDR, (uint32_t)buffer);
-    ret = esp_rom_spiflash_read(OTA_ADDR, (void *)buffer, 256);
+    ESP_LOGI("HOOK", "test read after erase at 0x%08x buf: %08x", OTA_ADDR, (uint32_t)fbuf);
+    ret = esp_rom_spiflash_read(OTA_ADDR, (void *)fbuf, 256);
     if (!ret)
-        hex_dump(buffer, 256);
+        hex_dump(fbuf, 256);
 
     ESP_LOGI("HOOK", "update succeed");
+}
+
+
+static void led_init(void)
+{
+    gpio_ll_set_level(&GPIO, BL_LED_PIN, 1);
+    gpio_ll_func_sel(&GPIO, BL_LED_PIN, PIN_FUNC_GPIO);
+    esp_rom_gpio_connect_out_signal(BL_LED_PIN, SIG_GPIO_OUT_IDX, false, false);
+    gpio_ll_output_enable(&GPIO, BL_LED_PIN);
+}
+
+static void led_set(bool on)
+{
+    gpio_ll_set_level(&GPIO, BL_LED_PIN, on);
+}
+
+
+static void wdt_feed(void)
+{
+    wdt_hal_context_t rwdt_ctx = RWDT_HAL_CONTEXT_DEFAULT();
+    wdt_hal_write_protect_disable(&rwdt_ctx);
+    wdt_hal_feed(&rwdt_ctx);
+    wdt_hal_write_protect_enable(&rwdt_ctx);
+}
+
+
+void bootloader_after_init(void) {
+    ESP_LOGI("HOOK", "cdcam bootloader, %s", BL_SW_VER);
+    mco_clock_init();
+
+    for (int i = 0; i < FRAME_MAX; i++)
+        cd_list_put(&frame_free_head, &frame_alloc[i]);
+
+    load_conf();
+    init_info_str();
+    ota_update();
+
+    uint32_t bl_args = REG_READ(BL_ARGS_REG);
+    REG_WRITE(BL_ARGS_REG, 0); // consume once; an unexpected reset falls back to normal
+    if (bl_args == BL_ARGS_APP) {
+        d_info("bl_comm: boot app (fast)\n");
+        return;
+    }
+    csa.keep_in_bl = (bl_args == BL_ARGS_KEEP);
+
+    led_init();
+    esp_rom_delay_us(50000);
+    cdctl_spi_init(&cd_spi);
+    if (cdctl_dev_init(&r_dev, &frame_free_head, &csa.bus_cfg, &cd_spi)) {
+        d_error("bl_comm: no cdctl, skip\n");
+        return;
+    }
+
+    // phase 1: talk at 115200 (a universally reachable rate), slow blink;
+    // phase 2 (after BL_PHASE1_MS): switch to user baud, fast blink;
+    // after BL_PHASE2_MS boot the app, unless a host asked to keep_in_bl.
+    bool phase2 = csa.keep_in_bl;
+    if (!phase2) {
+        cdctl_set_baud_rate(&r_dev, 115200, 115200);
+        cdctl_flush(&r_dev);
+    }
+
+    uint32_t t_boot = esp_log_early_timestamp();
+    uint32_t t_blink = t_boot;
+    bool led = true;
+    led_set(led);
+
+    while (true) {
+        cdctl_poll(&r_dev);
+        serial_cmd_dispatch();
+
+        uint32_t now = esp_log_early_timestamp();
+        if (now - t_blink > (phase2 ? BL_BLINK_FAST_MS : BL_BLINK_SLOW_MS)) {
+            t_blink = now;
+            led = !led;
+            led_set(led);
+        }
+
+        if (csa.save_conf) {
+            csa.save_conf = false;
+            save_conf();
+        }
+        if (csa.do_reboot) {
+            esp_rom_delay_us(10000);
+            REG_WRITE(BL_ARGS_REG, 0xcdcd0000 | csa.do_reboot);
+            d_info("bl_comm: reboot (%d)...\n", csa.do_reboot);
+            esp_rom_software_reset_system();
+        }
+
+        if (!csa.keep_in_bl) {
+            if (!phase2 && now - t_boot > BL_PHASE1_MS) {
+                phase2 = true;
+                cdctl_set_baud_rate(&r_dev, csa.bus_cfg.baud_l, csa.bus_cfg.baud_h);
+                cdctl_flush(&r_dev);
+            }
+            if (now - t_boot > BL_PHASE2_MS)
+                break; // boot app
+        }
+        wdt_feed();
+    }
+    led_set(0);
+    d_info("bl_comm: exit\n");
 }
