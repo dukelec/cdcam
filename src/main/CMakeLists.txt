@@ -33,3 +33,6 @@ idf_component_register(
         esp_driver_ppa
         esp_cam_sensor
 )
+
+# csa_dft overrides fields of CDCTL_CFG_DFT() on purpose
+set_source_files_properties(usr/config.c PROPERTIES COMPILE_OPTIONS "-Wno-override-init")
