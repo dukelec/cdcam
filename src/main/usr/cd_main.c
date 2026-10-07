@@ -192,8 +192,9 @@ void cd_main_early(void)
 
     load_conf();
     cdctl_spi_init();
-    cdctl_dev_init(&r_dev, &frame_free_head, &csa.bus_cfg, &r_spi, &r_int);
 
+    // config int_n before cdctl_dev_init: it reads int_n (cdctl_kick), and a pin with
+    // input disabled reads 0, which loops the state machine in the spi isr
     gpio_config_t io_conf_cd_int_n = {
         .intr_type = GPIO_INTR_NEGEDGE,
         .pin_bit_mask = (1ULL << r_int),
@@ -201,6 +202,8 @@ void cd_main_early(void)
         .pull_up_en = GPIO_PULLUP_ENABLE
     };
     gpio_config(&io_conf_cd_int_n);
+
+    cdctl_dev_init(&r_dev, &frame_free_head, &csa.bus_cfg, &r_spi, &r_int);
 
     gpio_install_isr_service(ESP_INTR_FLAG_LEVEL1);
     gpio_isr_handler_add(r_int, gpio_isr_cd_int_n, NULL);
