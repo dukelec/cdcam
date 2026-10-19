@@ -1,6 +1,7 @@
 [submodule "esp_video_components"]
 	path = src/esp_video_components
 	url = https://github.com/espressif/esp-video-components.git
+	ignore = dirty
 
 [submodule "cdnet_bl"]
 	path = src/bootloader_components/cd_boot_hooks/cdnet

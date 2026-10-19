@@ -19,7 +19,8 @@ cd_spinlock_t p5_lock = {0};
 static void send_frame(cd_frame_t *frame, uint8_t p_len)
 {
     frame->dat[2] = p_len + 2;
-    swap(frame->dat[0], frame->dat[1]); // swap mac
+    frame->dat[1] = frame->dat[0];
+    frame->dat[0] = bus_mac; // reply from own mac, even for broadcast cmd
     swap(frame->dat[3], frame->dat[4]); // swap port
     cdctl_send_frame(&r_dev.cd_dev, frame);
 }
