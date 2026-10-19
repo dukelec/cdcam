@@ -17,7 +17,7 @@
 #include "modbus_crc.h"
 
 #define APP_CONF_ADDR       0x003ff000 // last page
-#define APP_CONF_VER        0x0104
+#define APP_CONF_VER        0x0105
 
 // cross-reset flag to the bootloader (keep same as bootloader cd_config.h)
 #define BL_ARGS_REG         LP_SYSTEM_REG_LP_STORE0_REG
@@ -51,11 +51,14 @@ typedef struct {
     #define         _end_common cam_dst
 
     cdn_sockaddr_t  cam_dst;
-    uint16_t        width;
-    uint16_t        height;
+    uint16_t        roi_x;          // crop window in sensor frame (1280x960)
+    uint16_t        roi_y;
+    uint16_t        roi_w;          // 0: to frame edge
+    uint16_t        roi_h;
+    uint8_t         roi_scale;      // output = roi * roi_scale/16, range 1~16
     uint8_t         skip;
 
-    uint8_t         _reserved1[11];
+    uint8_t         _reserved1[6];
     uint8_t         manual;
     uint16_t        exposure;
     uint8_t         agc;

@@ -23,17 +23,8 @@ static const char *TAG = "cdcam";
 #define LSC_CORNER_GAIN_G 2.0f
 #define LSC_CORNER_GAIN_B 1.9f
 
-#define ROI_IN_X        0
-#define ROI_IN_Y        0
-#define ROI_IN_WIDTH    1280
-#define ROI_IN_HEIGHT   960
-#define ROI_SCALE_NUM   8  // numerator
-#define ROI_SCALE       (ROI_SCALE_NUM / 16.f)
-#define ROI_OUT_WIDTH   ((int)(ROI_IN_WIDTH * ROI_SCALE))
-#define ROI_OUT_HEIGHT  ((int)(ROI_IN_HEIGHT * ROI_SCALE))
-#define ROI_OUT_SIZE    (((ROI_OUT_WIDTH * ROI_OUT_HEIGHT * 2) + 63) & ~63)
-
-#define JPG_BUF_SIZE    ((((int)(ROI_OUT_SIZE * 1.5f)) + 63) & ~63)
+// crop window and scale come from csa.roi_*, buffers are sized for the full frame at scale 1.0
+#define JPG_BUF_SIZE    ((((int)(IMG_YUV422_SIZE * 1.5f)) + 63) & ~63)
 
 
 static jpeg_encoder_handle_t jpeg_handle;
@@ -219,14 +210,47 @@ static void report_task(void *arg)
 }
 
 
+typedef struct {
+    uint16_t x, y, w, h;    // input block in sensor frame
+    uint16_t out_w, out_h;
+    uint8_t  scale;         // numerator, /16
+} roi_geom_t;
+
+// derive ppa/jpeg geometry from csa.roi_*, clipped to the frame; output size uses the same
+// floor(w * scale / 16) as the ppa driver, jpeg encoder accepts any w/h (pads partial mcu)
+static bool roi_resolve(roi_geom_t *r)
+{
+    uint32_t flags;
+    cd_irq_save(&p5_lock, flags);
+    int x = csa.roi_x, y = csa.roi_y, w = csa.roi_w, h = csa.roi_h;
+    int scale = csa.roi_scale;
+    cd_irq_restore(&p5_lock, flags);
+
+    scale = clip(scale, 1, 16);
+    x = min(x, IMG_WIDTH - 1);
+    y = min(y, IMG_HEIGHT - 1);
+    if (!w || w > IMG_WIDTH - x)
+        w = IMG_WIDTH - x;
+    if (!h || h > IMG_HEIGHT - y)
+        h = IMG_HEIGHT - y;
+
+    r->x = x;
+    r->y = y;
+    r->w = w;
+    r->h = h;
+    r->out_w = w * scale / 16;
+    r->out_h = h * scale / 16;
+    r->scale = scale;
+    return r->out_w > 0 && r->out_h > 0;
+}
+
+
 static void encoder_task(void *arg)
 {
     jpeg_encode_cfg_t enc_config = {
         .src_type = JPEG_ENCODE_IN_FORMAT_RGB565,
         .sub_sample = JPEG_DOWN_SAMPLING_YUV422,
         .image_quality = 80,
-        .width = ROI_OUT_WIDTH,
-        .height = ROI_OUT_HEIGHT,
     };
 
     ppa_client_handle_t ppa_srm_handle = NULL;
@@ -236,46 +260,66 @@ static void encoder_task(void *arg)
     };
     ESP_ERROR_CHECK(ppa_register_client(&ppa_srm_config, &ppa_srm_handle));
 
-    uint8_t *yuv422_buf_sm = aligned_alloc(0x40, ROI_OUT_SIZE);
-
-    ESP_LOGI(TAG, "roi_out_size: %d (%d x %d)", ROI_OUT_SIZE, ROI_OUT_WIDTH, ROI_OUT_HEIGHT);
+    uint8_t *yuv422_buf_sm = aligned_alloc(0x40, IMG_YUV422_SIZE);
+    if (!yuv422_buf_sm) {
+        ESP_LOGE(TAG, "yuv422_buf_sm alloc error");
+        vTaskDelete(NULL);
+    }
 
     ppa_srm_oper_config_t srm_config = {
         .in.buffer = NULL,
         .in.pic_w = IMG_WIDTH,
         .in.pic_h = IMG_HEIGHT,
-        .in.block_w = ROI_IN_WIDTH,
-        .in.block_h = ROI_IN_HEIGHT,
-        .in.block_offset_x = ROI_IN_X,
-        .in.block_offset_y = ROI_IN_Y,
         .in.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
         .out.buffer = yuv422_buf_sm,
-        .out.buffer_size = ROI_OUT_SIZE,
-        .out.pic_w = ROI_OUT_WIDTH,
-        .out.pic_h = ROI_OUT_HEIGHT,
+        .out.buffer_size = IMG_YUV422_SIZE,
         .out.block_offset_x = 0,
         .out.block_offset_y = 0,
         .out.srm_cm = PPA_SRM_COLOR_MODE_RGB565,
         .rotation_angle = PPA_SRM_ROTATION_ANGLE_0,
         .mirror_x = false,
         .mirror_y = false,
-        .scale_x = ROI_SCALE,
-        .scale_y = ROI_SCALE,
         .rgb_swap = 0,
         .byte_swap = 0,
         .mode = PPA_TRANS_MODE_BLOCKING,
     };
 
+    roi_geom_t roi, roi_bk = {0};
+    bool roi_ok = false;
+
     while (true) {
         uint32_t flags;
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        bool ok = roi_resolve(&roi);
+        if (ok != roi_ok || memcmp(&roi, &roi_bk, sizeof(roi))) {
+            roi_ok = ok;
+            roi_bk = roi;
+            if (ok)
+                ESP_LOGI(TAG, "roi: %d,%d %dx%d x%d/16 -> %dx%d", roi.x, roi.y, roi.w, roi.h, roi.scale, roi.out_w, roi.out_h);
+            else
+                ESP_LOGE(TAG, "roi: invalid, output %dx%d", roi.out_w, roi.out_h);
+        }
+        if (!ok)
+            continue;
+
+        srm_config.in.block_offset_x = roi.x;
+        srm_config.in.block_offset_y = roi.y;
+        srm_config.in.block_w = roi.w;
+        srm_config.in.block_h = roi.h;
+        srm_config.out.pic_w = roi.out_w;
+        srm_config.out.pic_h = roi.out_h;
+        srm_config.scale_x = srm_config.scale_y = roi.scale / 16.f;
+        enc_config.width = roi.out_w;
+        enc_config.height = roi.out_h;
+        uint32_t out_size = roi.out_w * roi.out_h * 2;
 
         enc_busy = true;
         srm_config.in.buffer = yuv422_buf[1];
         ESP_ERROR_CHECK(ppa_do_scale_rotate_mirror(ppa_srm_handle, &srm_config));
         enc_busy = false;
 
-        ESP_ERROR_CHECK(jpeg_encoder_process(jpeg_handle, &enc_config, yuv422_buf_sm, ROI_OUT_SIZE,
+        ESP_ERROR_CHECK(jpeg_encoder_process(jpeg_handle, &enc_config, yuv422_buf_sm, out_size,
                                              jpg_buf[0], JPG_BUF_SIZE, &jpg_size[0]));
 
         cd_irq_save(&rpt_lock, flags);

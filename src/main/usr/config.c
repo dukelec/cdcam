@@ -17,8 +17,11 @@ const csa_t csa_dft = {
         .conf_ver = APP_CONF_VER,
         .bus_cfg = CDCTL_CFG_DFT(0xfe),
         .cam_dst = { .addr = {0x00, 0x00, 0x00}, .port = 0x10 },
-        .width = 800,
-        .height = 800,
+        .roi_x = 0,
+        .roi_y = 0,
+        .roi_w = 1280,
+        .roi_h = 960,
+        .roi_scale = 8,
         .skip = 3,
         .manual = false,
         .exposure = 50,
@@ -156,9 +159,12 @@ void csa_list_show(void)
     CSA_SHOW_SUB(1, cam_dst, cdn_sockaddr_t, port, "Send jpg to this port");
     d_info("\n");
 
-    CSA_SHOW(0, width, "Picture width");
-    CSA_SHOW(0, height, "Picture height");
-    CSA_SHOW(0, skip, "");
+    CSA_SHOW(0, roi_x, "Crop window x offset in sensor frame (1280x960)");
+    CSA_SHOW(0, roi_y, "Crop window y offset");
+    CSA_SHOW(0, roi_w, "Crop window width, 0: to frame edge");
+    CSA_SHOW(0, roi_h, "Crop window height, 0: to frame edge");
+    CSA_SHOW(0, roi_scale, "Output size = crop * roi_scale/16, range 1~16");
+    CSA_SHOW(0, skip, "Report every (skip+1) frames in continuous mode");
     d_info("\n");
     
     CSA_SHOW(0, manual, "0: Auto mode; 1: Manual mode");
