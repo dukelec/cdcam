@@ -42,7 +42,7 @@ void load_conf(void)
     if (csa_tmp.magic_code == 0xcdcd && csa_tmp.conf_ver == APP_CONF_VER) {
         memcpy(&csa, &csa_tmp, offsetof(csa_t, _end_save));
         csa.conf_from = 1;
-    } else if (csa_tmp.magic_code == 0xcdcd && (csa_tmp.conf_ver >> 8) == (APP_CONF_VER >> 8)) {
+    } else if (csa_tmp.magic_code == 0xcdcd && (csa_tmp.conf_ver >> 12) == (APP_CONF_VER >> 12)) {
         memcpy(&csa, &csa_tmp, offsetof(csa_t, _end_common));
         csa.conf_from = 2;
         csa.conf_ver = APP_CONF_VER;

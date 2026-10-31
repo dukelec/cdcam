@@ -91,7 +91,7 @@ void load_conf(void)
 {
     int ret = flash_read(APP_CONF_ADDR, (uint8_t *)&csa, offsetof(csa_t, _end_save));
 
-    if (ret == 0 && csa.magic_code == 0xcdcd && (csa.conf_ver >> 8) == (APP_CONF_VER >> 8)) {
+    if (ret == 0 && csa.magic_code == 0xcdcd && (csa.conf_ver >> 12) == (APP_CONF_VER >> 12)) {
         csa.conf_from = 1;
     } else {
         memset(&csa, 0, sizeof(csa_t));
