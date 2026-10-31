@@ -39,13 +39,16 @@ typedef enum {
     CAMCTL_RX_PAGE_FLAG,
     CAMCTL_RX_HEADER,
     CAMCTL_RX_BODY,
-    CAMCTL_RX_CTRL
+    CAMCTL_RX_CTRL,
+
+    CAMCTL_REG_MANUAL   // blocking camctl_reg_r / camctl_reg_w holds the spi
 } camctl_state_t;
 
 typedef struct {
     const char      *name;
 
-    camctl_state_t  state;
+    volatile camctl_state_t state;
+    cd_spinlock_t   lock;       // guards the state transitions out of idle
 
     list_head_t     *free_head;
     list_head_t     rx_head;
@@ -54,18 +57,19 @@ typedef struct {
 
     uint8_t         buf[4];
 
-    uint32_t        rx_cnt;
-    uint32_t        rx_lost_cnt;
-    uint32_t        rx_no_free_node_cnt;
+    volatile uint32_t rx_cnt;
+    volatile uint32_t rx_lost_cnt;
+    volatile uint32_t rx_no_free_node_cnt;
 
     spi_t           *spi;
     gpio_t          *int_n;
-    irq_t           int_irq;
 } camctl_dev_t;
 
 
-void camctl_dev_init(camctl_dev_t *dev, list_head_t *free_head, spi_t *spi, gpio_t *int_n, irq_t int_irq);
+void camctl_dev_init(camctl_dev_t *dev, list_head_t *free_head, spi_t *spi, gpio_t *int_n);
 
+// blocking register access, waits for the state machine to pause between two
+// spi transfers; not for use in an irq that can preempt the spi dma irq
 uint8_t camctl_reg_r(camctl_dev_t *dev, uint8_t reg);
 void camctl_reg_w(camctl_dev_t *dev, uint8_t reg, uint8_t val);
 

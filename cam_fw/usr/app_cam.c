@@ -68,7 +68,7 @@ static inline void sent_cam_frame(cd_frame_t *frame)
     // [5:4] FRAGMENT: 00: error, 01: first, 10: more, 11: last, [3:0]: cnt
     frame->dat[3] |= 0x40;
     frame->dat[4] = csa.cam_dst.port;
-    r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame);
+    cdctl_send_frame(&r_dev.cd_dev, frame);
 }
 
 uint8_t cam_cfg_hook(uint16_t sub_offset, uint8_t len, uint8_t *dat)
@@ -87,7 +87,7 @@ void app_cam_init(void)
     printf("pga pkt_size: %d + 1\n", camctl_reg_r(&cam_dev, CAM_REG_PKT_SIZE));
 }
 
-void app_cam_routine(void)
+void app_cam_poll(void)
 {
     if (status == 0) {
         if (csa.capture) {

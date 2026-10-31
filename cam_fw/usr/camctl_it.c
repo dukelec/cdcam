@@ -13,44 +13,70 @@
 #define CAMCTL_MASK CAM_BIT_FLAG_RX_PENDING
 
 
+// move state to `to` if it is not above `from_max`, returns the state before
+static camctl_state_t camctl_state_cas(camctl_dev_t *dev, camctl_state_t from_max, camctl_state_t to)
+{
+    uint32_t flags;
+    cd_irq_save(&dev->lock, flags);
+    camctl_state_t st = dev->state;
+    if (st <= from_max)
+        dev->state = to;
+    cd_irq_restore(&dev->lock, flags);
+    return st;
+}
+
+// take the spi from the state machine: wait for it to pause between two
+// transfers, then park it in CAMCTL_REG_MANUAL so camctl_int_isr() stays out
+static camctl_state_t camctl_manual_begin(camctl_dev_t *dev)
+{
+    camctl_state_t st; // spin with irq on, the dma irq has to finish the transfer
+    while ((st = camctl_state_cas(dev, CAMCTL_IDLE, CAMCTL_REG_MANUAL)) > CAMCTL_IDLE);
+    return st;
+}
+
+static void camctl_manual_end(camctl_dev_t *dev, camctl_state_t st)
+{
+    dev->state = st; // nobody else touches state while it is CAMCTL_REG_MANUAL
+    if (st != CAMCTL_RST && !gpio_get_val(dev->int_n))
+        camctl_int_isr(dev); // an int_n asserted meanwhile was turned away
+}
+
 // used by init and user configuration
 uint8_t camctl_reg_r(camctl_dev_t *dev, uint8_t reg)
 {
     uint8_t dat = 0xff;
-    irq_disable(dev->int_irq);
-    while (dev->state > CAMCTL_IDLE);
+    camctl_state_t st = camctl_manual_begin(dev);
     spi_mem_read(dev->spi, reg, &dat, 1);
-    irq_enable(dev->int_irq);
+    camctl_manual_end(dev, st);
     return dat;
 }
 
 void camctl_reg_w(camctl_dev_t *dev, uint8_t reg, uint8_t val)
 {
-    irq_disable(dev->int_irq);
-    while (dev->state > CAMCTL_IDLE);
+    camctl_state_t st = camctl_manual_begin(dev);
     spi_mem_write(dev->spi, reg | 0x80, &val, 1);
-    irq_enable(dev->int_irq);
+    camctl_manual_end(dev, st);
 }
 
 
-void camctl_dev_init(camctl_dev_t *dev, list_head_t *free_head, spi_t *spi, gpio_t *int_n, irq_t int_irq)
+void camctl_dev_init(camctl_dev_t *dev, list_head_t *free_head, spi_t *spi, gpio_t *int_n)
 {
     if (!dev->name)
         dev->name = "camctl";
     dev->rx_frame = cd_list_get(free_head);
     dev->free_head = free_head;
 
-#ifdef USE_DYNAMIC_INIT
+#ifdef CD_USE_DYNAMIC_INIT
     dev->state = CAMCTL_RST;
+    dev->lock = 0;
     list_head_init(&dev->rx_head);
-    dev->tx_cnt = 0;
+    dev->rx_cnt = 0;
     dev->rx_lost_cnt = 0;
     dev->rx_no_free_node_cnt = 0;
 #endif
 
     dev->spi = spi;
     dev->int_n = int_n;
-    dev->int_irq = int_irq;
 
     dn_info(dev->name, "init...\n");
 
@@ -94,13 +120,14 @@ static inline void camctl_reg_w_it(camctl_dev_t *dev, uint8_t reg, uint8_t val)
 
 // handlers
 
-// int_n pin interrupt isr
+// int_n pin interrupt isr: the idle check and the claim are one atomic step,
+// so a caller from another context can not start a second spi transfer
 void camctl_int_isr(camctl_dev_t *dev)
 {
-    if (dev->state == CAMCTL_IDLE) {
-        dev->state = CAMCTL_RD_FLAG;
+    if (dev->state == CAMCTL_RST) // before camctl_dev_init, RST only ever moves forward
+        return;
+    if (camctl_state_cas(dev, CAMCTL_IDLE, CAMCTL_RD_FLAG) <= CAMCTL_IDLE)
         camctl_reg_r_it(dev, CAM_REG_INT_FLAG);
-    }
 }
 
 // dma finish callback
@@ -135,7 +162,7 @@ void camctl_spi_isr(camctl_dev_t *dev)
         gpio_set_high(dev->spi->ns_pin);
         dev->rx_frame->dat[2] = 2 + dev->buf[1];
         dev->rx_frame->dat[3] = dev->buf[2];
-        
+
         dev->state = CAMCTL_RX_HEADER;
         dev->buf[0] = CAM_REG_RX;
         gpio_set_low(dev->spi->ns_pin);
@@ -151,7 +178,7 @@ void camctl_spi_isr(camctl_dev_t *dev)
             return; // should always return
         } // no return
     }
-    
+
     // end of CAMCTL_RX_BODY
     if (dev->state == CAMCTL_RX_BODY) {
         gpio_set_high(dev->spi->ns_pin);
