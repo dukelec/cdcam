@@ -20,8 +20,10 @@ void ov_manual_agc(uint8_t agc);
 int ov2640_init(void);
 
 static uint8_t frame_cnt = 0;
-static int status = 0; // 0: idle, 1: first, 2: more
+static int status = 0; // 0: idle, 1: wait for first, 2: more
 static bool cam_enable = false;
+static bool discard = false; // drop the current picture, csa.skip
+static uint8_t skip_cnt = 0;
 
 
 void pga_config(void)
@@ -68,7 +70,7 @@ static inline void sent_cam_frame(cd_frame_t *frame)
     // [5:4] FRAGMENT: 00: error, 01: first, 10: more, 11: last, [3:0]: cnt
     frame->dat[3] |= 0x40;
     frame->dat[4] = csa.cam_dst.port;
-    r_dev.cd_dev.put_tx_frame(&r_dev.cd_dev, frame);
+    cdctl_send_frame(&r_dev.cd_dev, frame);
 }
 
 uint8_t cam_cfg_hook(uint16_t sub_offset, uint8_t len, uint8_t *dat)
@@ -87,14 +89,32 @@ void app_cam_init(void)
     printf("pga pkt_size: %d + 1\n", camctl_reg_r(&cam_dev, CAM_REG_PKT_SIZE));
 }
 
-void app_cam_routine(void)
+// as the cdcam v4 firmware, except the capture-and-wait mode (2): there is no
+// memory to hold the picture, it is forwarded while it is read from the fpga
+static void capture_ctrl_apply(void)
 {
+    uint8_t ctrl = csa.capture_ctrl;
+    if (!ctrl)
+        return;
+    csa.capture_ctrl = 0;
+
+    if (ctrl == 0x80) {
+        csa.capture_state = 0; // a picture under way is still sent to its end
+    } else if (ctrl == 2) {
+        d_warn("cam: capture-and-wait not supported\n");
+    } else {
+        csa.capture_state = ctrl;
+        skip_cnt = 0;
+    }
+}
+
+void app_cam_poll(void)
+{
+    capture_ctrl_apply();
+
     if (status == 0) {
-        if (csa.capture) {
+        if (csa.capture_state) {
             //d_debug("cam: cap...\n");
-            if (csa.capture != 0xff) {
-                csa.capture = 0;
-            }
             status = 1;
             if (!cam_enable) {
                 cam_enable = true;
@@ -124,12 +144,18 @@ void app_cam_routine(void)
                 } else {
                     status = 2;
                     frame_cnt = 1;
-                    sent_cam_frame(frame);
+                    discard = skip_cnt != 0;
+                    if (discard)
+                        cd_list_put(&frame_free_head, frame);
+                    else
+                        sent_cam_frame(frame);
                 }
             } else {
                 uint8_t type = frame->dat[3] >> 4;
                 uint8_t cnt = frame->dat[3] & 0xf;
-                if ((type == 2 || type == 3) && cnt == frame_cnt) {
+                if (discard) {
+                    cd_list_put(&frame_free_head, frame);
+                } else if ((type == 2 || type == 3) && cnt == frame_cnt) {
                     sent_cam_frame(frame);
                 } else {
                     d_debug("cam: err, flg: %02x, cnt: %02x\n", frame->dat[3], frame_cnt);
@@ -139,6 +165,10 @@ void app_cam_routine(void)
                 if (type == 3) {
                     status = 0;
                     //d_debug("cam: done\n");
+                    if (csa.capture_state != 8)
+                        csa.capture_state = 0;
+                    if (skip_cnt++ >= csa.skip || csa.capture_state == 0)
+                        skip_cnt = 0;
                 }
                 frame_cnt++;
                 frame_cnt &= 0x0f;

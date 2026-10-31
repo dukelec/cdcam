@@ -16,7 +16,8 @@ regr_t csa_w_allow[] = {
 
 csa_hook_t csa_w_hook[] = {
         {
-            .range = { .offset = offsetof(csa_t, exposure), .size = offsetof(csa_t, _reserved2) - offsetof(csa_t, exposure) },
+            .range = { .offset = offsetof(csa_t, exposure),
+                    .size = offsetof(csa_t, agc) + sizeof(csa.agc) - offsetof(csa_t, exposure) },
             .after = cam_cfg_hook
         }
 };
@@ -31,12 +32,12 @@ const csa_t csa_dft = {
         .magic_code = 0xcdcd,
         .conf_ver = APP_CONF_VER,
 
-        .bus_net = 0,
         .bus_cfg = CDCTL_CFG_DFT(0xfe),
         .dbg_en = false,
         .cam_dst = { .addr = {0x00, 0x00, 0x00}, .port = 0x10 },
         .width = 640,
         .height = 480,
+        .skip = 0,
         .manual = false,
         .exposure = 50,
         .agc = 0
@@ -54,7 +55,7 @@ void load_conf(void)
     if (magic_code == 0xcdcd && conf_ver == APP_CONF_VER) {
         memcpy(&csa, (void *)APP_CONF_ADDR, offsetof(csa_t, _end_save));
         csa.conf_from = 1;
-    } else if (magic_code == 0xcdcd && (conf_ver >> 8) == (APP_CONF_VER >> 8)) {
+    } else if (magic_code == 0xcdcd && (conf_ver >> 12) == (APP_CONF_VER >> 12)) {
         memcpy(&csa, (void *)APP_CONF_ADDR, offsetof(csa_t, _end_common));
         csa.conf_from = 2;
         csa.conf_ver = APP_CONF_VER;
@@ -137,7 +138,9 @@ int flash_write(uint32_t addr, uint32_t len, const uint8_t *buf)
                 bool: "b", \
                 float: "f", \
                 char *: "[c]", \
+                int8_t *: "[b]", \
                 uint8_t *: "[B]", \
+                uint32_t *: "[I]", \
                 regr_t: "H,H", \
                 regr_t *: "{H,H}", \
                 default: "-"))
@@ -155,8 +158,9 @@ void csa_list_show(void)
 {
     d_info("csa_list_show:\n\n");
 
+    CSA_SHOW(1, magic_code, "Magic code: 0xcdcd");
     CSA_SHOW(1, conf_ver, "Config version");
-    CSA_SHOW(0, conf_from, "0: default config, 1: all from flash, 2: partly from flash");
+    CSA_SHOW(1, conf_from, "0: default config, 1: all from flash, 2: partly from flash");
     CSA_SHOW(0, do_reboot, "1: reboot to bl, 2: reboot to app");
     CSA_SHOW(0, save_conf, "Write 1 to save current config to flash");
     d_info("\n");
@@ -165,10 +169,11 @@ void csa_list_show(void)
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, baud_l, "RS-485 baud rate for first byte");
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, baud_h, "RS-485 baud rate for follow bytes");
     CSA_SHOW_SUB(1, bus_cfg, cdctl_cfg_t, filter_m, "Multicast address");
-    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, mode, "0: Arbitration, 1: Break Sync");
+    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, mode, "0: Traditional, 1: Arbitration, 2: Break Sync, 3: Full-duplex");
+    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, idle_wait_len, "Bus idle wait time");
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, tx_permit_len, "Allow send wait time");
     CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, max_idle_len, "Max idle wait time for BS mode");
-    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, tx_pre_len, " Active TX_EN before TX");
+    CSA_SHOW_SUB(0, bus_cfg, cdctl_cfg_t, tx_pre_len, "Active TX_EN before TX");
     d_debug("\n");
 
     CSA_SHOW(0, dbg_en, "1: Report debug message to host, 0: do not report");
@@ -180,14 +185,16 @@ void csa_list_show(void)
 
     CSA_SHOW(0, width, "Picture width");
     CSA_SHOW(0, height, "Picture height");
+    CSA_SHOW(0, skip, "Report every (skip+1) frames in continuous mode");
     d_info("\n");
-    
+
     CSA_SHOW(0, manual, "0: Auto mode; 1: Manual mode");
     CSA_SHOW(0, exposure, "Exposure (AEC)");
     CSA_SHOW(0, agc, "AGC");
     d_info("\n");
 
-    CSA_SHOW(0, capture, "Write 1 capture single image, write 255 keep capture");
-    CSA_SHOW(0, led_en, "LED enable / disable");
+    CSA_SHOW(0, capture_ctrl, "0x80: cancel, 1: one-shot, 8: continuous");
+    CSA_SHOW(0, capture_state, "0: idle, 1: one-shot, 8: continuous");
+    CSA_SHOW(0, led_en, "Enable/disable LED");
     d_info("\n");
 }

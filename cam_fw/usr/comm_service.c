@@ -36,12 +36,12 @@ static void init_info_str(void)
     // M: model; S: serial string; HW: hardware version; SW: software version
     get_uid(cpu_id);
     sprintf(info_str, "M: cdcam; S: %s; SW: %s", cpu_id, SW_VER);
-    d_info("info: %s\n", info_str);
+    d_info("info: %s, git: %s\n", info_str, SW_VER_FULL);
 }
 
 
 // device info
-static void p1_service_routine(void)
+static void p1_service_poll(void)
 {
     cdn_pkt_t *pkt = cdn_sock_recvfrom(&sock1);
     if (!pkt)
@@ -89,7 +89,7 @@ static void p1_service_routine(void)
 
 
 // flash memory manipulation
-static void p8_service_routine(void)
+static void p8_service_poll(void)
 {
     // erase:   0x2f, addr_32, len_32  | return [0x00] on success
     // write:   0x20, addr_32 + [data] | return [0x00] on success
@@ -114,7 +114,7 @@ static void p8_service_routine(void)
 
     } else if (rx_dat[0] == 0x00 && pkt->len == 6) {
         uint8_t *src_dat = (uint8_t *) get_unaligned32(rx_dat + 1);
-        uint8_t len = min(rx_dat[5], CDN_MAX_DAT - 1);
+        uint8_t len = min(rx_dat[5], CDN_MAX_PAYLOAD - 1);
         memcpy(pkt->dat + 1, src_dat, len);
         d_verbose("nvm read: %p %d\n", src_dat, len);
         pkt->dat[0] = 0;
@@ -170,7 +170,7 @@ static uint8_t csa_hook_exec(bool after, uint16_t offset, uint8_t len, uint8_t *
 
 
 // csa manipulation
-static void p5_service_routine(void)
+static void p5_service_poll(void)
 {
     //uint32_t flags;
     uint8_t ret_val = 0;
@@ -194,9 +194,12 @@ static void p5_service_routine(void)
 
     if (rx_dat[0] == 0x00 && pkt->len == 4) {
         uint16_t offset = get_unaligned16(rx_dat + 1);
-        uint8_t len = min(rx_dat[3], CDN_MAX_DAT - 1);
+        uint8_t len = min(rx_dat[3], CDN_MAX_PAYLOAD - 1);
 
-        ret_val = csa_hook_exec(false, offset, len, NULL);
+        if (offset + len > sizeof(csa_t))
+            ret_val = 1;
+        else
+            ret_val = csa_hook_exec(false, offset, len, NULL);
         if (!ret_val) {
             //local_irq_save(flags);
             memcpy(pkt->dat + 1, ((void *) &csa) + offset, len);
@@ -206,14 +209,17 @@ static void p5_service_routine(void)
 
         d_debug("csa read: %04x %d\n", offset, len);
         pkt->dat[0] = ret_val;
-        pkt->len = len + 1;
+        pkt->len = ret_val ? 1 : len + 1;
 
     } else if (rx_dat[0] == 0x20 && pkt->len > 3) {
         uint16_t offset = get_unaligned16(rx_dat + 1);
         uint8_t len = pkt->len - 3;
         uint8_t *src_dat = rx_dat + 3;
 
-        ret_val = csa_hook_exec(false, offset, len, src_dat);
+        if (offset + len > sizeof(csa_t))
+            ret_val = 1;
+        else
+            ret_val = csa_hook_exec(false, offset, len, src_dat);
         if (!ret_val) {
             for (int i = 0; i < csa_w_allow_num; i++) {
                 regr_t *regr = csa_w_allow + i;
@@ -243,11 +249,13 @@ static void p5_service_routine(void)
 
     } else if (rx_dat[0] == 0x01 && pkt->len == 4) {
             uint16_t offset = get_unaligned16(rx_dat + 1);
-            uint8_t len = min(rx_dat[3], CDN_MAX_DAT - 1);
-            memcpy(pkt->dat + 1, ((void *) &csa_dft) + offset, len);
+            uint8_t len = min(rx_dat[3], CDN_MAX_PAYLOAD - 1);
+            ret_val = offset + len > sizeof(csa_t) ? 1 : 0;
+            if (!ret_val)
+                memcpy(pkt->dat + 1, ((void *) &csa_dft) + offset, len);
             d_debug("csa read_dft: %04x %d\n", offset, len);
-            pkt->dat[0] = 0;
-            pkt->len = len + 1;
+            pkt->dat[0] = ret_val;
+            pkt->len = ret_val ? 1 : len + 1;
 
     } else {
         d_warn("csa: wrong cmd, len: %d\n", pkt->len);
@@ -262,7 +270,7 @@ static void p5_service_routine(void)
 }
 
 
-void common_service_init(void)
+void comm_service_init(void)
 {
     cdn_sock_bind(&sock5);
     cdn_sock_bind(&sock8);
@@ -272,7 +280,7 @@ void common_service_init(void)
     srand(u_id[0] + u_id[1] + u_id[2] + get_systick());
 }
 
-void common_service_routine(void)
+void comm_service_poll(void)
 {
     if (csa.save_conf) {
         csa.save_conf = false;
@@ -282,9 +290,9 @@ void common_service_routine(void)
         *(uint32_t *)BL_ARGS = 0xcdcd0000 | csa.do_reboot;
         NVIC_SystemReset();
     }
-    p1_service_routine();
-    p5_service_routine();
-    p8_service_routine();
+    p1_service_poll();
+    p5_service_poll();
+    p8_service_poll();
 }
 
 
@@ -294,14 +302,14 @@ int _write(int file, char *data, int len)
     if (csa.dbg_en) {
         cd_frame_t *frm = cd_list_get(&frame_free_head);
         if (frm) {
-            len = min(CDN_MAX_DAT - 2, len);
+            len = min(CDN_MAX_PAYLOAD, len);
             frm->dat[0] = csa.bus_cfg.mac;
             frm->dat[1] = 0x0;
             frm->dat[2] = 2 + len;
             frm->dat[3] = 64;
             frm->dat[4] = 9;
             memcpy(frm->dat + 5, data, len);
-            cdctl_put_tx_frame(&r_dev.cd_dev, frm);
+            cdctl_send_frame(&r_dev.cd_dev, frm);
             return len;
         }
     }

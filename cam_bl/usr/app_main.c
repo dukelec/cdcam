@@ -49,7 +49,7 @@ static void device_init(void)
         cdctl_flush(&r_dev);
     }
 
-    cdn_add_intf(&dft_ns, &r_dev.cd_dev, csa.bus_net, csa.bus_cfg.mac);
+    cdn_add_intf(&dft_ns, &r_dev.cd_dev, 0, csa.bus_cfg.mac);
 }
 
 
@@ -57,8 +57,9 @@ static void device_init(void)
 
 static void jump_to_app(void)
 {
+    static uint32_t func; // not on stack (MSP switches before use)
     uint32_t stack = *(uint32_t*)APP_ADDR;
-    uint32_t func = *(uint32_t*)(APP_ADDR + 4);
+    func = *(uint32_t*)(APP_ADDR + 4);
 
     gpio_set_val(&led_r, 0);
     gpio_set_val(&led_g, 0);
@@ -92,7 +93,7 @@ void app_main(void)
     gpio_set_high(&r_rst);
     delay_systick(50);
     device_init();
-    common_service_init();
+    comm_service_init();
     printf("bl conf: %s, bl_args: %08lx\n", csa.conf_from ? "load from flash" : "use default", *bl_args);
     gpio_set_val(&led_g, 1);
 
@@ -117,9 +118,8 @@ void app_main(void)
         if (!csa.keep_in_bl && get_systick() > 2000000 / CD_SYSTICK_US_DIV)
             jump_to_app();
 
-        cdctl_routine(&r_dev);
-        cdn_routine(&dft_ns); // handle cdnet
-        common_service_routine();
+        cdctl_poll(&r_dev);
+        cdn_poll(&dft_ns); // handle cdnet
+        comm_service_poll();
     }
 }
-
