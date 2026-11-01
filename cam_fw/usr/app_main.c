@@ -48,7 +48,7 @@ static void device_init(void)
     spi_wr_init(&r_spi);
     cdctl_dev_init(&r_dev, &frame_free_head, &csa.bus_cfg, &r_spi);
 
-    cdn_add_intf(&dft_ns, &r_dev.cd_dev, csa.bus_net, csa.bus_cfg.mac);
+    cdn_add_intf(&dft_ns, &r_dev.cd_dev, 0, csa.bus_cfg.mac);
 }
 
 
@@ -80,7 +80,7 @@ void app_main(void)
 
     load_conf();
     device_init();
-    common_service_init();
+    comm_service_init();
     d_info("conf (cam): %s\n", csa.conf_from ? "load from flash" : "use default");
     csa_list_show();
 
@@ -89,10 +89,10 @@ void app_main(void)
 
     while (true) {
         //dump_hw_status();
-        app_cam_routine();
-        cdctl_routine(&r_dev);
-        cdn_routine(&dft_ns); // handle cdnet
-        common_service_routine();
+        app_cam_poll();
+        cdctl_poll(&r_dev);
+        cdn_poll(&dft_ns); // handle cdnet
+        comm_service_poll();
         gpio_set_val(&led_cam, csa.led_en);
 
         if (*stack_check != 0xababcdcd12123434) {

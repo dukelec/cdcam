@@ -27,6 +27,7 @@
 
 #define FRAME_MAX           110
 #define PACKET_MAX          10
+#define CDN_MAX_PAYLOAD     251
 
 
 typedef struct {
@@ -39,14 +40,14 @@ typedef struct {
     uint16_t        magic_code;     // 0xcdcd
     uint16_t        conf_ver;
     uint8_t         conf_from;      // 0: default, 1: all from flash, 2: partly from flash
-    uint8_t         do_reboot;
-    bool            _reserved_bl;   // keep_in_bl for bl
+    uint8_t         do_reboot;      // 1: reboot to bl, 2: reboot to app
+    bool            _reserved00;    // keep_in_bl for bl
     bool            save_conf;
 
-    uint8_t         bus_net;
+    uint8_t         _reserved01;
     cdctl_cfg_t     bus_cfg;
-    bool            dbg_en;
-    uint8_t         _reserved0[6];
+    uint8_t         dbg_en;
+    uint8_t         _reserved02[6];
     #define         _end_common cam_dst
 
     cdn_sockaddr_t  cam_dst;
@@ -67,6 +68,18 @@ typedef struct {
     bool            led_en;
 
 } csa_t; // config status area
+
+// register address map shared with the cdcam v4 (github master) firmware
+_Static_assert(offsetof(csa_t, bus_cfg.mac) == 0x000c, "CSA mac offset");
+_Static_assert(offsetof(csa_t, bus_cfg.mode) == 0x001a, "CSA bus mode offset");
+_Static_assert(offsetof(csa_t, bus_cfg.idle_wait_len) == 0x001b, "CSA idle_wait_len offset");
+_Static_assert(offsetof(csa_t, dbg_en) == 0x0024, "CSA dbg_en offset");
+_Static_assert(offsetof(csa_t, cam_dst) == 0x002c, "CSA cam_dst offset");
+_Static_assert(offsetof(csa_t, width) == 0x0032, "CSA width offset");
+_Static_assert(offsetof(csa_t, manual) == 0x0042, "CSA manual offset");
+_Static_assert(offsetof(csa_t, exposure) == 0x0044, "CSA exposure offset");
+_Static_assert(offsetof(csa_t, capture) == 0x005f, "CSA capture offset");
+_Static_assert(offsetof(csa_t, led_en) == 0x0069, "CSA led_en offset");
 
 
 typedef uint8_t (*hook_func_t)(uint16_t sub_offset, uint8_t len, uint8_t *dat);
@@ -97,12 +110,12 @@ void load_conf(void);
 int save_conf(void);
 void csa_list_show(void);
 
-void common_service_init(void);
-void common_service_routine(void);
+void comm_service_init(void);
+void comm_service_poll(void);
 
 uint8_t cam_cfg_hook(uint16_t sub_offset, uint8_t len, uint8_t *dat);
 void app_cam_init(void);
-void app_cam_routine(void);
+void app_cam_poll(void);
 
 
 extern SPI_HandleTypeDef hspi1;
