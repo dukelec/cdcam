@@ -16,7 +16,8 @@ regr_t csa_w_allow[] = {
 
 csa_hook_t csa_w_hook[] = {
         {
-            .range = { .offset = offsetof(csa_t, exposure), .size = offsetof(csa_t, _reserved2) - offsetof(csa_t, exposure) },
+            .range = { .offset = offsetof(csa_t, exposure),
+                    .size = offsetof(csa_t, agc) + sizeof(csa.agc) - offsetof(csa_t, exposure) },
             .after = cam_cfg_hook
         }
 };
@@ -36,6 +37,7 @@ const csa_t csa_dft = {
         .cam_dst = { .addr = {0x00, 0x00, 0x00}, .port = 0x10 },
         .width = 640,
         .height = 480,
+        .skip = 0,
         .manual = false,
         .exposure = 50,
         .agc = 0
@@ -183,6 +185,7 @@ void csa_list_show(void)
 
     CSA_SHOW(0, width, "Picture width");
     CSA_SHOW(0, height, "Picture height");
+    CSA_SHOW(0, skip, "Report every (skip+1) frames in continuous mode");
     d_info("\n");
 
     CSA_SHOW(0, manual, "0: Auto mode; 1: Manual mode");
@@ -190,7 +193,8 @@ void csa_list_show(void)
     CSA_SHOW(0, agc, "AGC");
     d_info("\n");
 
-    CSA_SHOW(0, capture, "Write 1 capture single image, write 255 keep capture");
-    CSA_SHOW(0, led_en, "LED enable / disable");
+    CSA_SHOW(0, capture_ctrl, "0x80: cancel, 1: one-shot, 8: continuous");
+    CSA_SHOW(0, capture_state, "0: idle, 1: one-shot, 8: continuous");
+    CSA_SHOW(0, led_en, "Enable/disable LED");
     d_info("\n");
 }

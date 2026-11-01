@@ -23,7 +23,7 @@
 
 #define BL_ARGS             0x20000000 // first word
 #define APP_CONF_ADDR       0x0801f800 // page 63, the last page
-#define APP_CONF_VER        0x0103
+#define APP_CONF_VER        0x0200
 
 #define FRAME_MAX           110
 #define PACKET_MAX          10
@@ -51,21 +51,25 @@ typedef struct {
     #define         _end_common cam_dst
 
     cdn_sockaddr_t  cam_dst;
-    uint16_t        width;
+    uint8_t         _reserved1[4];  // roi_x, roi_y on cdcam v4
+    uint16_t        width;          // at the address of roi_w / roi_h on cdcam v4
     uint16_t        height;
+    uint8_t         _reserved2;     // roi_scale on cdcam v4
+    uint8_t         skip;           // report every (skip+1) frames in continuous mode
 
-    uint8_t         _reserved1[12];
-    bool            manual;
+    uint8_t         _reserved3[6];
+    uint8_t         manual;
     uint16_t        exposure;
     uint8_t         agc;
-    uint8_t         _reserved2[24];
+    uint8_t         _reserved4[24];
 
     // end of flash
-    #define         _end_save capture
+    #define         _end_save capture_ctrl
 
-    uint8_t         capture;
-    uint8_t         _reserved3[9];
-    bool            led_en;
+    uint8_t         capture_ctrl;   // 0x80: cancel, 1: one-shot, 8: continuous (2: capture-and-wait: v4 only)
+    uint8_t         capture_state;  // 0: idle, 1: one-shot, 8: continuous
+    uint8_t         _reserved5[8];
+    uint8_t         led_en;
 
 } csa_t; // config status area
 
@@ -75,10 +79,13 @@ _Static_assert(offsetof(csa_t, bus_cfg.mode) == 0x001a, "CSA bus mode offset");
 _Static_assert(offsetof(csa_t, bus_cfg.idle_wait_len) == 0x001b, "CSA idle_wait_len offset");
 _Static_assert(offsetof(csa_t, dbg_en) == 0x0024, "CSA dbg_en offset");
 _Static_assert(offsetof(csa_t, cam_dst) == 0x002c, "CSA cam_dst offset");
-_Static_assert(offsetof(csa_t, width) == 0x0032, "CSA width offset");
+_Static_assert(offsetof(csa_t, width) == 0x0036, "CSA width offset");
+_Static_assert(offsetof(csa_t, height) == 0x0038, "CSA height offset");
+_Static_assert(offsetof(csa_t, skip) == 0x003b, "CSA skip offset");
 _Static_assert(offsetof(csa_t, manual) == 0x0042, "CSA manual offset");
 _Static_assert(offsetof(csa_t, exposure) == 0x0044, "CSA exposure offset");
-_Static_assert(offsetof(csa_t, capture) == 0x005f, "CSA capture offset");
+_Static_assert(offsetof(csa_t, capture_ctrl) == 0x005f, "CSA capture_ctrl offset");
+_Static_assert(offsetof(csa_t, capture_state) == 0x0060, "CSA capture_state offset");
 _Static_assert(offsetof(csa_t, led_en) == 0x0069, "CSA led_en offset");
 
 

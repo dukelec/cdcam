@@ -22,6 +22,8 @@ static uint8_t frame_cnt = 0;
 static uint8_t status = 0; // 0: idle, 1: first, 2: more
 static bool err_flag = false;
 
+static uint8_t skip_cnt = 0;
+
 static uint8_t pl_max = 253 - 6;
 static uint8_t pl[2] = { 0 }; // len
 static uint8_t *pp[2] = { 0 };
@@ -81,6 +83,25 @@ void app_cam_init(void)
     HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
 }
 
+// as the cdcam v4 firmware, except the capture-and-wait mode (2): there is no
+// memory to hold the picture, it is forwarded while it is read from the sensor
+static void capture_ctrl_apply(void)
+{
+    uint8_t ctrl = csa.capture_ctrl;
+    if (!ctrl)
+        return;
+    csa.capture_ctrl = 0;
+
+    if (ctrl == 0x80) {
+        csa.capture_state = 0; // a picture under way is still sent to its end
+    } else if (ctrl == 2) {
+        d_warn("cam: capture-and-wait not supported\n");
+    } else {
+        csa.capture_state = ctrl;
+        skip_cnt = 0;
+    }
+}
+
 void app_cam_poll(void)
 {
     static int v_last = 0;
@@ -88,15 +109,19 @@ void app_cam_poll(void)
     bool v_stop = v_last && !v_cur;
     v_last = v_cur;
 
+    capture_ctrl_apply();
+
     if (status == 0) {
         pl[0] = pl[1] = 0;
         frame_cnt = 0;
 
-        if (v_stop && csa.capture) {
-            d_debug("cam: cap...\n");
-            if (csa.capture != 0xff)
-                csa.capture = 0;
-            status = 1;
+        if (v_stop && csa.capture_state) {
+            if (skip_cnt == 0) {
+                d_debug("cam: cap...\n");
+                status = 1;
+            }
+            if (skip_cnt++ >= csa.skip) // report every (skip+1) pictures
+                skip_cnt = 0;
         }
     }
 
@@ -167,6 +192,10 @@ void app_cam_poll(void)
         status = 0;
         pl[0] = pl[1] = 0;
         frame_cnt = 0;
+        if (csa.capture_state != 8) {
+            csa.capture_state = 0;
+            skip_cnt = 0;
+        }
     }
 
     update_prepare();
@@ -180,6 +209,10 @@ void app_cam_poll(void)
         frame_prepare->dat[4] = csa.cam_dst.port;
         cdctl_send_frame(&r_dev.cd_dev, frame_prepare);
         frame_prepare = NULL;
+        if (csa.capture_state != 8) {
+            csa.capture_state = 0;
+            skip_cnt = 0;
+        }
     }
 }
 
