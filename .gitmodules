@@ -11,3 +11,6 @@
 	path = src/main/cdnet
 	url = ../cdnet
 
+[submodule "pycdnet"]
+	path = tools/pycdnet
+	url = ../pycdnet

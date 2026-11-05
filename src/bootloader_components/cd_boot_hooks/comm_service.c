@@ -10,9 +10,37 @@
 #include "cd_utils.h"
 #include "hooks.h"
 #include "modbus_crc.h"
+#include "soc/efuse_reg.h"
 
 static char info_str[100];
+static const char bl_sw_ver[] = BL_VER_TAG BL_SW_VER;
 
+
+static void strcat_u8(char *s, uint8_t v)
+{
+    char t[4], *p = t + 3;
+    *p = '\0';
+    do {
+        *--p = '0' + v % 10;
+        v /= 10;
+    } while (v);
+    strcat(s, p);
+}
+
+static void strcat_hw_ver(char *s) // efuse USER_DATA bytes: major, minor, patch; nothing if never written
+{
+    uint32_t v = REG_READ(EFUSE_RD_USR_DATA0_REG);
+    if (!(v & 0xffffff))
+        return;
+    strcat(s, "; HW: v");
+    strcat_u8(s, v);
+    strcat(s, ".");
+    strcat_u8(s, v >> 8);
+    if (v >> 16 & 0xff) {
+        strcat(s, ".");
+        strcat_u8(s, v >> 16);
+    }
+}
 
 void init_info_str(void)
 {
@@ -33,7 +61,9 @@ void init_info_str(void)
     cpu_id[12] = '\0';
     strcpy(info_str, "M: cdcam (bl); S: ");
     strcat(info_str, cpu_id);
-    strcat(info_str, "; SW: " BL_SW_VER);
+    strcat_hw_ver(info_str);
+    strcat(info_str, "; SW: ");
+    strcat(info_str, bl_sw_ver + sizeof(BL_VER_TAG) - 1);
     d_info("bl_comm: %s\n", info_str);
 }
 

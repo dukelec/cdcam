@@ -9,10 +9,12 @@
 
 #include "cd_main.h"
 #include "esp_mac.h"
+#include "esp_efuse.h"
+#include "spi_flash_mmap.h"
 static const char *tag = "comm-ser";
 
 char cpu_id[25] = { 0 };
-static char info_str[100];
+static char info_str[128];
 cd_spinlock_t p5_lock = {0};
 
 
@@ -25,14 +27,44 @@ static void send_frame(cd_frame_t *frame, uint8_t p_len)
     cdctl_send_frame(&r_dev.cd_dev, frame);
 }
 
+static void get_hw_ver_str(char *buf) // buf[24], efuse USER_DATA bytes: major, minor, patch; "" if never written
+{
+    uint8_t v[3] = { 0 };
+    *buf = '\0';
+    esp_efuse_read_block(EFUSE_BLK_USER_DATA, v, 0, 24);
+    if (v[0] | v[1] | v[2])
+        sprintf(buf, v[2] ? "; HW: v%d.%d.%d" : "; HW: v%d.%d", v[0], v[1], v[2]);
+}
+
+static void get_bl_ver_str(char *buf) // buf[32], "" for older bls
+{
+    const char *p;
+    spi_flash_mmap_handle_t h;
+    const int tag_len = sizeof(BL_VER_TAG) - 1;
+    *buf = '\0';
+    if (spi_flash_mmap(0, CONFIG_PARTITION_TABLE_OFFSET, SPI_FLASH_MMAP_DATA, (const void **)&p, &h) != ESP_OK)
+        return;
+    const char *end = p + CONFIG_PARTITION_TABLE_OFFSET;
+    const char *s = memmem(p + CONFIG_BOOTLOADER_OFFSET_IN_FLASH, end - p - CONFIG_BOOTLOADER_OFFSET_IN_FLASH,
+                           BL_VER_TAG, tag_len);
+    if (s) {
+        int n = end - s - tag_len;
+        sprintf(buf, "; BL: %.*s", n < 20 ? n : 20, s + tag_len);
+    }
+    spi_flash_munmap(h);
+}
+
 static void init_info_str(void)
 {
     uint8_t mac[6] = { 0 };
     esp_efuse_mac_get_default(mac);
     sprintf(cpu_id, "%02x%02x%02x%02x%02x%02x",
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    // M: model; S: serial string; HW: hardware version; SW: software version
-    sprintf(info_str, "M: cdcam; S: %s; SW: %s", cpu_id, SW_VER);
+    // M: model; S: serial string; HW: hardware version; BL: bl version; SW: software version
+    char hw_ver[24], bl_ver[32];
+    get_hw_ver_str(hw_ver);
+    get_bl_ver_str(bl_ver);
+    snprintf(info_str, sizeof(info_str), "M: cdcam; S: %s%s%s; SW: %s", cpu_id, hw_ver, bl_ver, SW_VER);
     d_info("info: %s, git: %s\n", info_str, SW_VER_FULL);
 }
 
@@ -96,6 +128,21 @@ static void p8_handler(cd_frame_t *frame)
         }
         if (reply)
             send_frame(frame, ret ? 1 : 3);
+
+    } else if (*p_dat == 0x40 && p_len == 3) { // efuse USER_DATA read: 0x40, ofs_8, len_8 | [0x00, data]
+        uint8_t ofs = p_dat[1], len = p_dat[2];
+        int ret = ofs + len > 32 ? -1 : esp_efuse_read_block(EFUSE_BLK_USER_DATA, p_dat + 1, ofs * 8, len * 8);
+        *p_dat = ret ? 1 : 0;
+        if (reply)
+            send_frame(frame, ret ? 1 : len + 1);
+
+    } else if (*p_dat == 0x60 && p_len > 2) {
+        // efuse USER_DATA write: 0x60, ofs_8 + [data] | [0x00]; rs coded, the block takes one write only
+        uint8_t ofs = p_dat[1], len = p_len - 2;
+        int ret = ofs + len > 32 ? -1 : esp_efuse_write_block(EFUSE_BLK_USER_DATA, p_dat + 2, ofs * 8, len * 8);
+        *p_dat = ret ? 1 : 0;
+        if (reply)
+            send_frame(frame, 1);
 
     } else {
         cd_list_put(&frame_free_head, frame);

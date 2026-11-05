@@ -21,6 +21,7 @@
 
 // cross-reset flag to the bootloader (keep same as bootloader cd_config.h)
 #define BL_ARGS_REG         LP_SYSTEM_REG_LP_STORE0_REG
+#define BL_VER_TAG          "\xcd\xcd" "bl_ver:" // the bl version follows it in the bl image (keep same as bootloader hooks.h)
 
 #define FRAME_MAX           500
 

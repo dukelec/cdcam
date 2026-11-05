@@ -14,6 +14,7 @@
 #include "cdctl.h"
 
 #define BL_SW_VER           "v1.3"
+#define BL_VER_TAG          "\xcd\xcd" "bl_ver:" // BL_SW_VER follows it in the bl image, the app reads it, keep same in app
 
 // cross-reset flag (survives software reset, cleared on power-on), keep same in app.
 // LP_STORE0 is unused by the rom / idf. values: (0xcdcd0000 | do_reboot)
